@@ -1,5 +1,5 @@
 """
-kit_structural.py - kit v0.1: the parts of the page the four-method adapter cannot see.
+kit_structural.py - kit v0.2: the parts of the page the four-method adapter cannot see.
 Judges the real API named in INTERFACE.md ("The structural surface"). Called by kit.py; can be run alone:
     python3 laws/kit_structural.py --impl PATH_TO_src
 ST1 surface (S1, E5)   ST2 seals (section 1)   ST3 inert Display (S1)   ST4 named refusals (section 1, S2, S4, S5, E3, S3)
@@ -83,6 +83,13 @@ def run_all(impl_path):
              ("ZERO_EVIDENCE", {k: v for k, v in appendix().items() if k != "closed"}),
              ("TABLE_SOURCE", bad(table_sources={**SRC, "kernels": {"test": "guessed"}})),
              ("TABLE_SOURCE", bad(table_sources={k: v for k, v in SRC.items() if k != "prior"} | {"kernels": {"test": "data"}}))]
+    cases.append(("PRICE", bad(O={"test": act(AP_K, F(-1, 2))})))
+    cases.append(("TABLE_SHAPE", bad(T={"treat": {"sick": F(0)}, "leave": AP_T["leave"]})))                       # a utility missing a state
+    cases.append(("TABLE_SHAPE", bad(O={"test": act({"sick": AP_K["sick"]}, F(1, 2))})))                          # a kernel missing a state
+    cases.append(("TABLE_SHAPE", bad(O={"test": act(AP_K, F(1, 2), True, {"boom": {"sick": F(0), "well": F(0)}})})))  # an ending outcome the kernel cannot emit
+    cases.append(("TABLE_SHAPE", bad(O={"test": act(AP_K, F(1, 2), True, {"+": {"sick": F(0)}})})))                # a u_end missing a state
+    fresh_named = appendix(F(1, 2), False); fresh_named["sources"] = {"test": ["the_draw"]}
+    cases.append(("SHARED_SOURCE", fresh_named))                                                                  # S2: two executions of a fresh act read it twice
     shared = dict(twin); shared["sources"] = {"test": ["the_draw"], "test_copy": ["the_draw"]}
     cases.append(("SHARED_SOURCE", shared))
     for want, s in cases:

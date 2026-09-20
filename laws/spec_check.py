@@ -116,7 +116,9 @@ def rand_world(rng):
     for j in range(2):
         K = {}
         for w in Wd:
-            r = [rng.choice([1, 1, 2, 5, 12]) for _ in range(2)]; z = sum(r)
+            r = [rng.choice([0, 1, 1, 2, 5, 12]) for _ in range(2)]
+            if sum(r) == 0: r[rng.randrange(2)] = 1
+            z = sum(r)
             K[w] = {f"o{i}": F(x, z) for i, x in enumerate(r)}
         O[f"k{j}"] = {"K": K, "price": F(rng.randint(1, 4), 4), "once": rng.random() < 0.7, "ends": {}}
     if rng.random() < 0.4: O["k1"]["ends"] = {"o1": u_e()}
@@ -133,12 +135,15 @@ def C1(agent, world, rng):
     for spec in world["O"].values():
         pr = agent.push(world["prior"], spec["K"])
         if sum(pr.values()) != 1 or min(pr.values()) < 0: return False
-        for o in pr:
+        for o, po in pr.items():
+            if po == 0: continue                      # conditioning on a zero-mass outcome is S5's business, not C1's
             b = agent.condition(world["prior"], spec["K"], o)
             if sum(b.values()) != 1 or min(b.values()) < 0: return False
     return True
 def C2(agent, world, rng):
     k0, k1 = world["O"]["k0"]["K"], world["O"]["k1"]["K"]; c = agent.condition
+    try: REF.condition(REF.condition(world["prior"], k0, "o0"), k1, "o1")
+    except WorldFalsified: return True               # the pair has zero mass: nothing to commute
     return c(c(world["prior"], k0, "o0"), k1, "o1") == c(c(world["prior"], k1, "o1"), k0, "o0")
 def C3(agent, world, rng):
     a, c = F(rng.randint(2, 5)), F(rng.randint(-6, 6))
@@ -159,6 +164,7 @@ def C6(agent, world, rng):
     for spec in world["O"].values():
         for o in ("o0", "o1"):
             z = sum(p * spec["K"][w][o] for w, p in world["prior"].items())
+            if z == 0: continue
             today = sum(p * spec["K"][w][o] * X[w] for w, p in world["prior"].items()) / z
             if agent.expect(agent.condition(world["prior"], spec["K"], o), X) != today: return False
     return True
@@ -167,6 +173,7 @@ def C7(agent, world, rng):
     for spec in world["O"].values():
         groups = {}
         for o, po in REF.push(world["prior"], spec["K"]).items():
+            if po == 0: continue
             stated = agent.expect(agent.condition(world["prior"], spec["K"], o), e0)
             joint = sum(p * spec["K"][w][o] * e0[w] for w, p in world["prior"].items())
             g = groups.setdefault(stated, [F(0), F(0)]); g[0] += joint; g[1] += po
@@ -249,6 +256,7 @@ class DoubleCount(Ref):
     name = "one observation conditioned on twice"
     def condition(self, b, K, o): return super().condition(super().condition(b, K, o), K, o)
 class Dampen(Ref):
+    # (K+1)/2 never gives zero mass, so this poison also fails S5
     name = "tempered update (likelihood mixed with a constant)"
     def condition(self, b, K, o):
         z = sum(p * (K[w][o] + 1) / 2 for w, p in b.items())
