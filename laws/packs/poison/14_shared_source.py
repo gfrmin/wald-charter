@@ -1,0 +1,9 @@
+# expect: SHARED_SOURCE
+world("p", closed=True)
+clock(horizon=2, depth=2, source="elicited")
+space(health=["sick", "well"])
+prior({"sick": 1/5, "well": 4/5}, source="data")
+utility({"treat": {"sick": 0, "well": -2}, "leave": {"sick": -10, "well": 0}}, source="elicited")
+price({"test": 1/2, "again": 1/2}, source="elicited")
+act("test", once=True, kernel=table({"sick": {"+": 9/10, "-": 1/10}, "well": {"+": 1/5, "-": 4/5}}, source="data"), reads=["the_draw"])
+act("again", once=True, kernel=table({"sick": {"+": 9/10, "-": 1/10}, "well": {"+": 1/5, "-": 4/5}}, source="data"), reads=["the_draw"])
