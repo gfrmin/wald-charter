@@ -150,8 +150,9 @@ class Checker:
         if nm in self.acts: raise Refused("DUPLICATE", nm)
         once = self.plain(a["once"])
         if not isinstance(once, bool): raise Refused("NOT_A_DECLARATION", "once=True or once=False (fresh)")
-        tags = set(); K = self.kernel(a["kernel"], tags); reads = self.plain(a["reads"])
+        tags = set(); self.named = set(); K = self.kernel(a["kernel"], tags); reads = self.plain(a["reads"])
         if not isinstance(reads, list) or not reads or not all(isinstance(r, str) for r in reads): raise Refused("NOT_A_DECLARATION", f"act {nm!r}: reads=[sources], at least one (CHARTER S2)")
+        if isinstance(reads, list) and not self.named <= set(reads): raise Refused("UNDECLARED_READ", f"act {nm!r} names {sorted(self.named - set(reads))} in its kernel but not in reads")
         comps = list(self.space); idx = [i for i, c in enumerate(comps) if c in reads]; rows = {}
         for st, row in K.items():                      # the kernel may depend on no component the act does not say it reads
             proj = tuple((st if len(comps) == 1 else st[i]) for i in idx)
@@ -159,29 +160,16 @@ class Checker:
         self.kernel_src[nm] = sorted(tags); self.acts[nm] = {"K": K, "once": once, "reads": reads}
     # ---- S4: kernels are built only from these
     def kernel(self, n, tags):
-        if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)): raise Refused("NOT_A_DECLARATION", f"line {n.lineno}: a kernel is table, by, point, host, data, mixture, product or compose")
+        if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)): raise Refused("NOT_A_DECLARATION", f"line {n.lineno}: a kernel is table, by, point, data, mixture, product or compose")
         f = n.func.id
         if f in ("table", "by"):
             if f == "table": a = self.args(n, ("rows",), ("source",), ("rows",)); t = self.tag(a, n); tags.add(t); return self.table(a["rows"], t, 2)
             a = self.args(n, ("component", "rows"), ("source",), ("component", "rows")); t = self.tag(a, n); tags.add(t)
-            c, rows = self.plain(a["component"]), self.table(a["rows"], t, 2)
+            c, rows = self.plain(a["component"]), self.table(a["rows"], t, 2); self.named.add(c)
             try: return {s: dict(rows[self.comp(s, c)]) for s in self.states()}
             except KeyError as e: raise Refused("TABLE_SHAPE", f"line {n.lineno}: no row for {e}")
         if f == "point":
-            a = self.args(n, ("component",), (), ("component",)); c = self.plain(a["component"]); return {s: {self.comp(s, c): F(1)} for s in self.states()}
-        if f == "host":
-            if not n.args: raise Refused("NOT_A_DECLARATION", "host(name, parameters..., source=...)")
-            a = self.args(n, ("name",), ("source",), ("name",)) if len(n.args) == 1 else {"name": n.args[0], **{k.arg: k.value for k in n.keywords}}
-            h = self.plain(a["name"]); t = self.tag(a, n); tags.add(t)
-            if h not in self.hosts: raise Refused("UNKNOWN_HOST", h)
-            try: src = textwrap.dedent(inspect.getsource(self.hosts[h]))
-            except (OSError, TypeError): raise Refused("UNKNOWN_HOST", f"{h}: no source to read")
-            for c in ast.walk(ast.parse(src)):
-                if isinstance(c, ast.Constant) and isinstance(c.value, (int, float)) and not isinstance(c.value, bool) and c.value not in (0, 1):
-                    raise Refused("UNHOUSED_NUMERAL", f"host {h!r} contains the number {c.value!r}; pass it as a parameter")
-            self.host_prints[h] = hashlib.sha256(src.encode()).hexdigest()[:16]
-            vals = [self.num(x, t) for x in n.args[1:]]
-            return {s: {self.hosts[h](s, *vals): F(1)} for s in self.states()}
+            a = self.args(n, ("component",), (), ("component",)); c = self.plain(a["component"]); self.named.add(c); return {s: {self.comp(s, c): F(1)} for s in self.states()}
         if f == "data":
             a = self.args(n, ("file",), ("source",), ("file",)); t = self.tag(a, n)
             if t == "elicited": raise Refused("TABLE_SOURCE", "an elicited number is written in the pack, where the owner can see it")
@@ -221,17 +209,17 @@ class Checker:
     def spec(self):
         for need in ONCE_ONLY:
             if need not in self.seen: raise Refused("MISSING", need)
-        unread = sorted(set(self.params) - self.read)
-        if unread: raise Refused("UNREAD_PARAMETER", ", ".join(unread))
         O = {}
         for nm, a in self.acts.items():
             if nm not in self.prices: raise Refused("TABLE_SHAPE", f"no price for {nm!r}")
             O[nm] = {"K": a["K"], "price": self.prices[nm], "once": a["once"], "ends": self.ending.get(nm, {})}
         extra = (set(self.prices) - set(O)) | (set(self.ending) - set(O))
         if extra: raise Refused("TABLE_SHAPE", f"a price or an ending for no act: {sorted(extra)}")
+        unread = sorted(set(self.params) - self.read)
+        if unread: raise Refused("UNREAD_PARAMETER", ", ".join(unread))
         s = {"prior": self.prior, "T": self.T, "O": O, "N": int(self.N), "d": int(self.d),
              "table_sources": {"prior": self.prior_src, "utility": self.util_src, "price": self.price_src, "horizon": self.N_src, "depth": self.d_src, "kernels": dict(self.kernel_src)},
-             "sources": {nm: a["reads"] for nm, a in self.acts.items()}, "components": list(self.space), "hosts": dict(self.host_prints)}
+             "sources": {nm: a["reads"] for nm, a in self.acts.items()}, "components": list(self.space)}
         if self.N.denominator != 1 or self.d.denominator != 1: raise Refused("DEPTH", "horizon and depth are whole numbers")
         if self.closed: s["closed"] = True
         if self.bottom is not None: s["bottom"] = self.bottom
@@ -280,18 +268,12 @@ def to_pack(w, N, d):
         L.append(f'act({k!r}, once={a["once"]}, kernel=table({rows}, source="data"), reads=["s"])')
     return "\n".join(L) + "\n"
 
-def wordle_feedback(guess):
-    def f(answer): return "".join("g" if a == b else ("y" if b in answer else "-") for a, b in zip(answer, guess))
-    return f
-def over_cutoff(state, cutoff): return "+" if int(state[1][1:]) > cutoff else "-"
-def over_cutoff_hidden(state): return "+" if int(state[1][1:]) > 37 else "-"
-HOSTS = {"fb_" + g: wordle_feedback(g) for g in ("cat", "cot", "dog")}
-HOSTS.update(over_cutoff=over_cutoff, over_cutoff_hidden=over_cutoff_hidden)
+HOSTS = {}
 
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
-              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "cutoff_37.py": (F(-77, 50), "assay"), "cutoff_42.py": (F(-8, 5), "treat")}
+              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue

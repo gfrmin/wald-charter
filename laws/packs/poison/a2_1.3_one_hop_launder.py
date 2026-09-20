@@ -1,0 +1,11 @@
+# expect: TABLE_SOURCE
+world("p", closed=True)
+horizon(1, source="elicited")
+depth(1, source="elicited")
+space({"health": ["sick", "well"]})
+param("sens_fit", 9/10, source="fitted")
+param("sens", sens_fit, source="data")
+prior({"sick": 1/5, "well": 4/5}, source="data")
+utility({"treat": {"sick": 0, "well": -2}, "leave": {"sick": -10, "well": 0}}, source="elicited")
+price({"test": 1/2}, source="elicited")
+act("test", once=True, kernel=table({"sick": {"+": sens, "-": 1 - sens}, "well": {"+": 1/5, "-": 4/5}}, source="data"), reads=["health"])

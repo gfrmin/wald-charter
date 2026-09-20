@@ -1,4 +1,4 @@
-# Wordle on three words. Feedback is a host instrument: a pure function of the state, sourced, with no number inside it.
+# Wordle on three words, its feedback written out: every row is a fact of the game, so the tables say `data`.
 world("wordle mini", closed=True)
 horizon(3, source="data")
 depth(3, source="elicited")
@@ -9,6 +9,6 @@ utility({"give up": {"cat": -10, "cot": -10, "dog": -10}},
                 "cot": {"ggg": {"cat": 0, "cot": 0, "dog": 0}},
                 "dog": {"ggg": {"cat": 0, "cot": 0, "dog": 0}}}, source="data")
 price({"cat": 1, "cot": 1, "dog": 1}, source="data")
-act("cat", once=True, kernel=host("fb_cat", source="data"), reads=["answer"])
-act("cot", once=True, kernel=host("fb_cot", source="data"), reads=["answer"])
-act("dog", once=True, kernel=host("fb_dog", source="data"), reads=["answer"])
+act("cat", once=True, kernel=table({"cat": {"---": 0, "g-g": 0, "ggg": 1}, "cot": {"---": 0, "g-g": 1, "ggg": 0}, "dog": {"---": 1, "g-g": 0, "ggg": 0}}, source="data"), reads=["answer"])
+act("cot", once=True, kernel=table({"cat": {"-g-": 0, "g-g": 1, "ggg": 0}, "cot": {"-g-": 0, "g-g": 0, "ggg": 1}, "dog": {"-g-": 1, "g-g": 0, "ggg": 0}}, source="data"), reads=["answer"])
+act("dog", once=True, kernel=table({"cat": {"---": 1, "-g-": 0, "ggg": 0}, "cot": {"---": 0, "-g-": 1, "ggg": 0}, "dog": {"---": 0, "-g-": 0, "ggg": 1}}, source="data"), reads=["answer"])
