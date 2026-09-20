@@ -1,0 +1,10 @@
+# expect: NOT_A_DECLARATION
+world("shared draw", closed=True)
+horizon(2, source="elicited")
+depth(2, source="elicited")
+space({"side": ["x", "y"], "lambda": ["p", "m"]})
+prior(by("lambda", {"p": 1/4, "m": 1/4}), source="data")
+utility({"go": by("side", {"x": 1, "y": -4}), "hold": by("side", {"x": 0, "y": 0})}, source="elicited")
+price({"k1": 1/20, "k2": 1/20}, source="elicited")
+act("k1", once=True, kernel=point("lambda"), reads=["lambda"])
+act("k2", once=True, kernel=point("lambda"), reads=["lambda"])

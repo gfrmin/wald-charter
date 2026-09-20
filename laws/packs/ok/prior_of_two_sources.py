@@ -1,0 +1,12 @@
+# Surface attack 3, finding 2.1: a prior built from a measured rate and an elicited one. Each parameter keeps its own source.
+world("shared draw", closed=True)
+horizon(2, source="elicited")
+depth(2, source="elicited")
+space({"side": ["x", "y"], "lambda": ["p", "m"]})
+param("half", 1/2, source="data")
+param("agree", 3/4, source="elicited")
+prior({("x", "p"): half * agree, ("x", "m"): half * (1 - agree), ("y", "p"): half * (1 - agree), ("y", "m"): half * agree}, source="elicited")
+utility({"go": by("side", {"x": 1, "y": -4}), "hold": by("side", {"x": 0, "y": 0})}, source="elicited")
+price({"k1": 1/20, "k2": 1/20}, source="elicited")
+act("k1", once=True, kernel=point("lambda"), reads=["lambda"])
+act("k2", once=True, kernel=point("lambda"), reads=["lambda"])

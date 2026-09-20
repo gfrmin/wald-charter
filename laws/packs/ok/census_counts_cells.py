@@ -1,0 +1,10 @@
+# Surface attack 3, finding 1.4: the appendix written in ones. The count is of quantities, not of numerals, so it still reads 14 elicited.
+world("p", closed=True)
+horizon(1, source="elicited")
+depth(1, source="elicited")
+space({"health": ["sick", "well"]})
+param("u", 1, source="elicited")
+prior({"sick": u/(u+u+u+u+u), "well": (u+u+u+u)/(u+u+u+u+u)}, source="elicited")
+utility({"treat": {"sick": u-u, "well": -u-u}, "leave": {"sick": -(u+u+u+u+u)*(u+u), "well": u-u}}, source="elicited")
+price({"test": u/(u+u)}, source="elicited")
+act("test", once=True, kernel=table({"sick": {"+": u-u/((u+u+u+u+u)*(u+u)), "-": u/((u+u+u+u+u)*(u+u))}, "well": {"+": u/(u+u+u+u+u), "-": (u+u+u+u)/(u+u+u+u+u)}}, source="elicited"), reads=["health"])

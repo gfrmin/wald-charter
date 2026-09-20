@@ -57,11 +57,10 @@ class Checker:
             if isinstance(n.value, bool): raise Refused("NOT_A_DECLARATION", f"line {n.lineno}: a boolean is not a number")
             if isinstance(n.value, float): raise Refused("FLOAT", f"line {n.lineno}: {n.value!r} is not exact; write a ratio of integers")
             if isinstance(n.value, int):
-                if tag and not getattr(self, "_quiet", False): self.census[tag] += 1
-                self._quiet = False; return F(n.value)
+                return F(n.value)
         if isinstance(n, ast.Name):
             if n.id not in self.params: raise Refused("UNKNOWN_NAME", f"line {n.lineno}: {n.id}")
-            if tag and tag != "fitted" and self.param_src[n.id] != tag: raise Refused("TABLE_SOURCE", f"line {n.lineno}: a {tag!r} table reads the {self.param_src[n.id]!r} parameter {n.id!r}")
+            if tag and tag != "fitted" and self.param_src[n.id] == "fitted": raise Refused("TABLE_SOURCE", f"line {n.lineno}: a {tag!r} table reads the {self.param_src[n.id]!r} parameter {n.id!r}")
             self.read.add(n.id); return self.params[n.id]
         if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub): return -self.num(n.operand, tag)
         if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
@@ -83,7 +82,9 @@ class Checker:
         return k
     def table(self, n, tag, depth):
         "nested dict literal, `depth` levels of keys above the numbers"
-        if depth == 0: return self.num(n, tag)
+        if depth == 0:
+            if tag: self.census[tag] += 1
+            return self.num(n, tag)
         if not isinstance(n, ast.Dict) or any(k is None for k in n.keys): raise Refused("NOT_A_DECLARATION", f"line {n.lineno}: a table is a dict literal")
         out = {}
         for k, v in zip(n.keys, n.values):
@@ -99,10 +100,13 @@ class Checker:
     def comp(self, state, c):
         if c not in self.space: raise Refused("UNKNOWN_NAME", f"component {c!r}")
         return state if len(self.space) == 1 else state[list(self.space).index(c)]
+    def by_rows(self, c, rows, n):
+        need = {self.comp(st, c) for st in self.states()}
+        if set(rows) != need: raise Refused("TABLE_SHAPE", f"line {n.lineno}: by({c!r}) needs a row for exactly {sorted(need)}")
     def over(self, n, tag, depth):
         "a table over states: a dict keyed by state, or by(component, {value: ...})"
         if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "by":
-            a = self.args(n, ("component", "rows"), (), ("component", "rows")); c = self.plain(a["component"]); rows = self.table(a["rows"], tag, depth)
+            a = self.args(n, ("component", "rows"), (), ("component", "rows")); c = self.plain(a["component"]); rows = self.table(a["rows"], tag, depth); self.by_rows(c, rows, n)
             try: return {s: rows[self.comp(s, c)] for s in self.states()}
             except KeyError as e: raise Refused("TABLE_SHAPE", f"line {n.lineno}: no row for {e}")
         return self.table(n, tag, depth)
@@ -112,9 +116,9 @@ class Checker:
         self.closed = self.plain(a["closed"]) if "closed" in a else False
         self.bottom = self.key(a["bottom"]) if "bottom" in a else None
     def d_horizon(self, call):
-        a = self.args(call, ("n",), ("source",), ("n",)); self.N_src = self.tag(a, call); self.N = self.num(a["n"], self.N_src)
+        a = self.args(call, ("n",), ("source",), ("n",)); self.N_src = self.tag(a, call); self.N = self.num(a["n"], self.N_src); self.census[self.N_src] += 1
     def d_depth(self, call):
-        a = self.args(call, ("d",), ("source",), ("d",)); self.d_src = self.tag(a, call); self.d = self.num(a["d"], self.d_src)
+        a = self.args(call, ("d",), ("source",), ("d",)); self.d_src = self.tag(a, call); self.d = self.num(a["d"], self.d_src); self.census[self.d_src] += 1
     def d_space(self, call):
         a = self.args(call, ("components",), (), ("components",)); n = a["components"]
         if not isinstance(n, ast.Dict) or not n.keys or any(k is None for k in n.keys): raise Refused("NOT_A_DECLARATION", 'space({"component": [names], ...})')
@@ -129,11 +133,13 @@ class Checker:
         a = self.args(call, ("name", "value"), ("source",), ("name", "value")); nm = self.plain(a["name"]); t = self.tag(a, call)
         if nm in self.params: raise Refused("DUPLICATE", nm)
         if not isinstance(nm, str) or not nm.isidentifier() or keyword.iskeyword(nm) or nm in DECLS: raise Refused("BAD_NAME", f"{nm!r} cannot be read from a cell")
-        self.params[nm] = self.num(a["value"], t); self.param_src[nm] = t
+        self.params[nm] = self.num(a["value"], t); self.param_src[nm] = t; self.census[t] += 1
     def d_prior(self, call):
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.prior_src = t
-        self.prior = self.over(a["table"], t, 1)
+        if not isinstance(a["table"], ast.Dict): raise Refused("NOT_A_DECLARATION", "the prior is a dict keyed by state: it is what says which states exist")
+        self.prior = self.table(a["table"], t, 1)
     def d_utility(self, call):
+        self.states()
         a = self.args(call, ("terminal",), ("ending", "source"), ("terminal",)); t = self.tag(a, call); self.util_src = t
         if not isinstance(a["terminal"], ast.Dict): raise Refused("NOT_A_DECLARATION", "utility({act: table over states}, ...)")
         self.T = {self.key(k): self.over(v, t, 1) for k, v in zip(a["terminal"].keys, a["terminal"].values)}
@@ -146,6 +152,7 @@ class Checker:
     def d_price(self, call):
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.price_src = t; self.prices = self.table(a["table"], t, 1)
     def d_act(self, call):
+        self.states()
         a = self.args(call, ("name",), ("kernel", "once", "reads"), ("name", "kernel", "once", "reads")); nm = self.plain(a["name"])
         if nm in self.acts: raise Refused("DUPLICATE", nm)
         once = self.plain(a["once"])
@@ -158,14 +165,18 @@ class Checker:
             proj = tuple((st if len(comps) == 1 else st[i]) for i in idx)
             if rows.setdefault(proj, row) != row: raise Refused("UNDECLARED_READ", f"act {nm!r} depends on a component missing from reads={reads}")
         self.kernel_src[nm] = sorted(tags); self.acts[nm] = {"K": K, "once": once, "reads": reads}
+    def rows_ok(self, rows, where):
+        for k, r in rows.items():
+            if any(q < 0 for q in r.values()) or sum(r.values()) != 1: raise Refused("KERNEL_ROW", f"{where}: row {k!r} is not a distribution")
+        return rows
     # ---- S4: kernels are built only from these
     def kernel(self, n, tags):
         if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)): raise Refused("NOT_A_DECLARATION", f"line {n.lineno}: a kernel is table, by, point, data, mixture, product or compose")
         f = n.func.id
         if f in ("table", "by"):
-            if f == "table": a = self.args(n, ("rows",), ("source",), ("rows",)); t = self.tag(a, n); tags.add(t); return self.table(a["rows"], t, 2)
+            if f == "table": a = self.args(n, ("rows",), ("source",), ("rows",)); t = self.tag(a, n); tags.add(t); return self.rows_ok(self.table(a["rows"], t, 2), "table")
             a = self.args(n, ("component", "rows"), ("source",), ("component", "rows")); t = self.tag(a, n); tags.add(t)
-            c, rows = self.plain(a["component"]), self.table(a["rows"], t, 2); self.named.add(c)
+            c, rows = self.plain(a["component"]), self.rows_ok(self.table(a["rows"], t, 2), "by"); self.named.add(c); self.by_rows(c, rows, n)
             try: return {s: dict(rows[self.comp(s, c)]) for s in self.states()}
             except KeyError as e: raise Refused("TABLE_SHAPE", f"line {n.lineno}: no row for {e}")
         if f == "point":
@@ -179,14 +190,14 @@ class Checker:
             keys = [json.dumps(r[0]) for r in rows]
             if len(set(keys)) != len(keys): raise Refused("DUPLICATE", "a state appears twice in the data file")
             K = {(tuple(s) if isinstance(s, list) else s): {o: F(q) for o, q in row.items()} for s, row in rows}
-            self.census[t] += sum(len(r) for r in K.values()); return K
+            self.census[t] += sum(len(r) for r in K.values()); return self.rows_ok(K, "data file")
         if f == "mixture":
             a = self.args(n, ("parts",), ("source",), ("parts",)); t = self.tag(a, n); tags.add(t)
             if not isinstance(a["parts"], ast.List): raise Refused("NOT_A_DECLARATION", "mixture([(weight, kernel), ...], source=...)")
             parts = []
             for e in a["parts"].elts:
                 if not (isinstance(e, ast.Tuple) and len(e.elts) == 2): raise Refused("NOT_A_DECLARATION", "mixture([(weight, kernel), ...])")
-                parts.append((self.num(e.elts[0], t), self.kernel(e.elts[1], tags)))
+                self.census[t] += 1; parts.append((self.num(e.elts[0], t), self.kernel(e.elts[1], tags)))
             if sum(w for w, _ in parts) != 1 or any(w < 0 for w, _ in parts): raise Refused("KERNEL_ROW", "mixture weights are non-negative and sum to 1")
             out = {s: {} for s in self.states()}
             for w, K in parts:
@@ -198,12 +209,11 @@ class Checker:
             return {s: {(o1, o2): p * q for o1, p in A.get(s, {}).items() for o2, q in B.get(s, {}).items()} for s in self.states()}
         if f == "compose":
             a = self.args(n, ("first", "then"), ("source",), ("first", "then")); t = self.tag(a, n); tags.add(t)
-            A, G = self.kernel(a["first"], tags), self.table(a["then"], t, 2); out = {}
+            A, G = self.kernel(a["first"], tags), self.rows_ok(self.table(a["then"], t, 2), "garbling"); out = {}
             for s, row in A.items():
                 out[s] = {}
                 for o, p in row.items():
                     if o not in G: raise Refused("TABLE_SHAPE", f"compose: no row for outcome {o!r}")
-                    if sum(G[o].values()) != 1: raise Refused("KERNEL_ROW", f"compose: row {o!r}")
                     for o2, q in G[o].items(): out[s][o2] = out[s].get(o2, F(0)) + p * q
             return out
         raise Refused("NOT_A_DECLARATION", f"line {n.lineno}: {f} is not a kernel")
@@ -215,6 +225,8 @@ class Checker:
         for nm, a in self.acts.items():
             if nm not in self.prices: raise Refused("TABLE_SHAPE", f"no price for {nm!r}")
             O[nm] = {"K": a["K"], "price": self.prices[nm], "once": a["once"], "ends": self.ending.get(nm, {})}
+        both = set(self.T) & set(O)
+        if both: raise Refused("DUPLICATE", f"{sorted(both)} name both a terminal and an observational act")
         extra = (set(self.prices) - set(O)) | (set(self.ending) - set(O))
         if extra: raise Refused("TABLE_SHAPE", f"a price or an ending for no act: {sorted(extra)}")
         unread = sorted(set(self.params) - self.read)
@@ -275,7 +287,7 @@ HOSTS = {}
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
-              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test")}
+              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test"), "prior_of_two_sources.py": (F(0), "hold"), "census_counts_cells.py": (F(-51, 50), "test")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue
