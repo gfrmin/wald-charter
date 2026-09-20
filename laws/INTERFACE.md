@@ -33,3 +33,10 @@ The kit never reads the implementation's source. It checks C1–C11, S5 and E2 o
 - `wald.episode.run(world, door) -> result` with `acts` (every act played, in order, the terminal one last), `outcomes`, `status` in `TERMINAL | ENDED | WORLD_FALSIFIED`, `paid` (sum of prices, a Fraction) and `final` (the last Belief).
 
 Deferred to brief 002, because they need the surface syntax: unhoused numerals and unread parameters (S3), and refusing a pack that chooses (E5).
+
+## The surface (kit v0.3, under the signed page `SURFACE.md`, tag `surface-v0`)
+
+- `wald.surface.check(text, data_dir) -> spec`: parses a pack with `ast`, never executes it, and returns the World spec above, ready for `declare`. `data_dir` is where `data` files are looked for. It raises `wald.refusals.Refused` with the names of SURFACE §5 (`DATA_HASH` included). A pack that breaks several rules may be refused under any one of their names.
+- `wald.surface.census(text, data_dir) -> {"data": n, "elicited": n, "fitted": n}`: the count of quantities by source (SURFACE §3).
+- From kit v0.3 the spec's `table_sources["kernels"][act]` is a sorted **list** of tags (empty for a kernel with no numbers, such as `point`), `sources` holds every act's `reads`, and `components` lists the components of the space. `declare` accepts these.
+- `laws/surface_check.py` is the reference checker: it is the definition, not a dependency. `laws/packs/` is the corpus the kit runs.

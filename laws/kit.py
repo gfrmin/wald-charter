@@ -7,6 +7,7 @@ kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in
 2. The implementation, through its adapter `wald.kit_adapter.make_agent()` (see INTERFACE.md), must pass
    C1-C11, S5 and E2 (the oracle's act at every reachable (b, M, n)) on worlds drawn from a seed the builder never sees,
    on forced-tie variants of those worlds (J3), and on the appendix vector.
+4. kit v0.3: the SURFACE page (kit_surface.py): the pack corpus, and random Worlds printed as packs and read back.
 3. kit v0.1: the structural surface (kit_structural.py): seals, inert Display, named refusals, single-use Obs, the loop's order.
 Exit code 0 = the implementation passes. Nothing else counts.
 """
@@ -93,6 +94,8 @@ def main():
         for cname, w in fails.items(): print(f"FAIL {cname}\n  first failing world: {show(w)}")
     import kit_structural
     if not kit_structural.main(a.impl): ok = False
+    import kit_surface
+    if not kit_surface.main(a.impl, a.seed): ok = False
     print("IMPLEMENTATION PASSES" if ok else "IMPLEMENTATION FAILS"); return 0 if ok else 1
 
 if __name__ == "__main__": sys.exit(main())

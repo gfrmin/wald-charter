@@ -13,7 +13,7 @@ SRC = {"prior": "data", "utility": "elicited", "price": "elicited", "horizon": "
 
 def spec(prior, T, O, N=1, d=1, **kw):
     s = {"prior": prior, "T": T, "O": O, "N": N, "d": d, "closed": True,
-         "table_sources": {**SRC, "kernels": {k: "data" for k in O}}}
+         "table_sources": {**SRC, "kernels": {k: ["data"] for k in O}}}
     s.update(kw); return s
 def act(K, price, once=True, ends=None): return {"K": K, "price": price, "once": once, "ends": ends or {}}
 AP_T = {"treat": {"sick": F(0), "well": F(-2)}, "leave": {"sick": F(-10), "well": F(0)}}
@@ -73,7 +73,7 @@ def run_all(impl_path):
     # ST4
     good = appendix()
     check("ST4 a lawful World is accepted", refusal_name(good) == "ACCEPTED", refusal_name(good))
-    twin = appendix(); twin["O"]["test_copy"] = act(AP_K, F(1, 2)); twin["table_sources"]["kernels"]["test_copy"] = "data"; twin["N"] = 2
+    twin = appendix(); twin["O"]["test_copy"] = act(AP_K, F(1, 2)); twin["table_sources"]["kernels"]["test_copy"] = ["data"]; twin["N"] = 2
     check("ST4 two acts with identical kernels and private sources are accepted", refusal_name(twin) == "ACCEPTED", refusal_name(twin))
     def bad(**kw): s = appendix(); s.update(kw); return s
     cases = [("EMPTY_T", bad(T={})),
@@ -81,8 +81,8 @@ def run_all(impl_path):
              ("KERNEL_ROW", bad(O={"test": act({"sick": {"+": F(9, 10), "-": F(1, 20)}, "well": AP_K["well"]}, F(1, 2))})),
              ("DEPTH", bad(d=0)), ("DEPTH", bad(d=2)),
              ("ZERO_EVIDENCE", {k: v for k, v in appendix().items() if k != "closed"}),
-             ("TABLE_SOURCE", bad(table_sources={**SRC, "kernels": {"test": "guessed"}})),
-             ("TABLE_SOURCE", bad(table_sources={k: v for k, v in SRC.items() if k != "prior"} | {"kernels": {"test": "data"}}))]
+             ("TABLE_SOURCE", bad(table_sources={**SRC, "kernels": {"test": ["guessed"]}})),
+             ("TABLE_SOURCE", bad(table_sources={k: v for k, v in SRC.items() if k != "prior"} | {"kernels": {"test": ["data"]}}))]
     cases.append(("PRICE", bad(O={"test": act(AP_K, F(-1, 2))})))
     cases.append(("TABLE_SHAPE", bad(T={"treat": {"sick": F(0)}, "leave": AP_T["leave"]})))                       # a utility missing a state
     cases.append(("TABLE_SHAPE", bad(O={"test": act({"sick": AP_K["sick"]}, F(1, 2))})))                          # a kernel missing a state
