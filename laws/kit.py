@@ -98,6 +98,8 @@ def main():
     if not kit_surface.main(a.impl, a.seed): ok = False
     import kit_wordle
     if not kit_wordle.main(a.impl, a.seed): ok = False
+    import kit_wordle_big
+    if not kit_wordle_big.main(a.impl, a.seed): ok = False
     print("IMPLEMENTATION PASSES" if ok else "IMPLEMENTATION FAILS"); return 0 if ok else 1
 
 if __name__ == "__main__": sys.exit(main())
