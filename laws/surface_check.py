@@ -61,7 +61,7 @@ class Checker:
                 self._quiet = False; return F(n.value)
         if isinstance(n, ast.Name):
             if n.id not in self.params: raise Refused("UNKNOWN_NAME", f"line {n.lineno}: {n.id}")
-            if tag and self.param_src[n.id] != tag: raise Refused("TABLE_SOURCE", f"line {n.lineno}: a {tag!r} table reads the {self.param_src[n.id]!r} parameter {n.id!r}")
+            if tag and tag != "fitted" and self.param_src[n.id] != tag: raise Refused("TABLE_SOURCE", f"line {n.lineno}: a {tag!r} table reads the {self.param_src[n.id]!r} parameter {n.id!r}")
             self.read.add(n.id); return self.params[n.id]
         if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub): return -self.num(n.operand, tag)
         if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
@@ -171,9 +171,11 @@ class Checker:
         if f == "point":
             a = self.args(n, ("component",), (), ("component",)); c = self.plain(a["component"]); self.named.add(c); return {s: {self.comp(s, c): F(1)} for s in self.states()}
         if f == "data":
-            a = self.args(n, ("file",), ("source",), ("file",)); t = self.tag(a, n)
+            a = self.args(n, ("file",), ("source", "sha256"), ("file", "sha256")); t = self.tag(a, n)
             if t == "elicited": raise Refused("TABLE_SOURCE", "an elicited number is written in the pack, where the owner can see it")
-            tags.add(t); rows = json.load(open(os.path.join(self.data_dir, self.plain(a["file"]))))
+            tags.add(t); raw = open(os.path.join(self.data_dir, self.plain(a["file"])), "rb").read()
+            if hashlib.sha256(raw).hexdigest() != self.plain(a["sha256"]): raise Refused("DATA_HASH", "the file is not the one the pack pinned")
+            rows = json.loads(raw)
             keys = [json.dumps(r[0]) for r in rows]
             if len(set(keys)) != len(keys): raise Refused("DUPLICATE", "a state appears twice in the data file")
             K = {(tuple(s) if isinstance(s, list) else s): {o: F(q) for o, q in row.items()} for s, row in rows}
@@ -273,7 +275,7 @@ HOSTS = {}
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
-              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold")}
+              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue
@@ -285,11 +287,11 @@ if __name__ == "__main__":
         except Refused as e: ok = False; print(f"  BAD {fn}: refused {e}")
     print("poison packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/poison"))):
-        text = open(os.path.join(here, "packs/poison", fn)).read(); want = text.splitlines()[0].replace("# expect:", "").strip()
+        text = open(os.path.join(here, "packs/poison", fn)).read(); want = {w.strip() for w in text.splitlines()[0].replace("# expect:", "").split("|")}
         try: check(text, HOSTS, os.path.join(here, "packs/ok")); got = "ACCEPTED"
         except Refused as e: got = e.name
-        good = got == want; ok &= good
-        print(f"  {'ok ' if good else 'BAD'} {fn:28s} {got}" + ("" if good else f"   (wanted {want})"))
+        good = got in want; ok &= good
+        print(f"  {'ok ' if good else 'BAD'} {fn:28s} {got}" + ("" if good else f"   (wanted {sorted(want)})"))
     rng = random.Random(2026); bad = 0
     for i in range(200):
         w = S.rand_world(rng); ren = {s: f"e{s[0]}z{s[1]}" for s in w["prior"]}

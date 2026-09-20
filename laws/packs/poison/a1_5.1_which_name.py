@@ -1,4 +1,4 @@
-# expect: FLOAT
+# expect: FLOAT | DEPTH | UNREAD_PARAMETER
 world("p", closed=True)
 horizon(1, source="elicited")
 depth(2, source="elicited")

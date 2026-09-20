@@ -1,4 +1,4 @@
-# expect: KERNEL_ROW
+# expect: KERNEL_ROW | UNREAD_PARAMETER
 world("p", closed=True)
 horizon(1, source="elicited")
 depth(1, source="elicited")

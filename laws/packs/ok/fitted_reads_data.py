@@ -1,9 +1,11 @@
-# expect: TABLE_SOURCE
+# `fitted` is absorbing: a fitted table may read a data parameter; the table says fitted.
 world("p", closed=True)
 horizon(1, source="elicited")
 depth(1, source="elicited")
 space({"health": ["sick", "well"]})
+param("fpr", 1/5, source="data")
+param("sens", 9/10, source="fitted")
 prior({"sick": 1/5, "well": 4/5}, source="data")
 utility({"treat": {"sick": 0, "well": -2}, "leave": {"sick": -10, "well": 0}}, source="elicited")
 price({"test": 1/2}, source="elicited")
-act("test", once=True, kernel=data("appendix_kernel.json", sha256="0e540c2b97eaf6a48baf9d2cac4728dc6a84bb0bdd7a953db230ee3bd365a048", source="elicited"), reads=["health"])
+act("test", once=True, kernel=table({"sick": {"+": sens, "-": 1 - sens}, "well": {"+": fpr, "-": 1 - fpr}}, source="fitted"), reads=["health"])
