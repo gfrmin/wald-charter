@@ -1,4 +1,4 @@
-# SURFACE v0 — draft 1, for the author's ruling
+# SURFACE v0 — draft 1, ruled, awaiting attack
 
 Status: unsigned. Nothing here is in force until the author's signed tag `surface-v0`. This page is subordinate to `CHARTER.md` (tag `charter-v0`): it says how a World is written down. It adds no semantics.
 
@@ -58,14 +58,14 @@ Of the surface: `SYNTAX`, `NOT_A_DECLARATION`, `UNKNOWN_NAME`, `UNKNOWN_HOST`, `
 
 | mark | question | ruling | date |
 |---|---|---|---|
-| K1 | Python's syntax, parsed and never executed | | |
-| K2 | arithmetic over integers and parameters is allowed inside a cell | | |
-| K3 | no number outside a table, 0 and 1 included (stricter than CHARTER S3) | | |
-| K4 | `host(name)`: deterministic host instruments are lawful kernels; stochastic ones are not, in v0 | | |
-| K5 | `data` files for `data` and `fitted` tables only; `elicited` numbers live in the pack | | |
-| K6 | one source per act's kernel | | |
-| K7 | the first rule broken names the refusal | | |
-| K8 | out of v0: numeric latent components (write a grid of named values and its tables by hand), generated tables, stochastic hosts | | |
+| K1 | Python's syntax, parsed and never executed | accept | 2026-09-20 |
+| K2 | arithmetic over integers and parameters is allowed inside a cell | accept | 2026-09-20 |
+| K3 | no number outside a table, 0 and 1 included (stricter than CHARTER S3) | accept | 2026-09-20 |
+| K4 | `host(name)`: deterministic host instruments are lawful kernels; stochastic ones are not, in v0 | accept | 2026-09-20 |
+| K5 | `data` files for `data` and `fitted` tables only; `elicited` numbers live in the pack | accept | 2026-09-20 |
+| K6 | one source per act's kernel | accept | 2026-09-20 |
+| K7 | the first rule broken names the refusal | accept | 2026-09-20 |
+| K8 | out of v0: numeric latent components (write a grid of named values and its tables by hand), generated tables, stochastic hosts | accept | 2026-09-20 |
 
 Attack sessions:
 - Session 1, on draft 1: ___ claimed, ___ reproduced, all resolved: yes / no.
