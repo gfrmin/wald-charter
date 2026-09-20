@@ -93,11 +93,14 @@ class Checker:
             out[kk] = self.table(v, tag, depth - 1)
         return out
     # ---- the space
-    def product(self): return [c[0] if len(c) == 1 else c for c in itertools.product(*self.space.values())]
+    def product(self):
+        if "space" not in self.seen: raise Refused("MISSING", "space")
+        return [c[0] if len(c) == 1 else c for c in itertools.product(*self.space.values())]
     def states(self):
         if "prior" not in self.seen: raise Refused("MISSING", "prior: tables over states come after the prior, which says what the states are")
         return list(self.prior)
     def comp(self, state, c):
+        if "space" not in self.seen: raise Refused("MISSING", "space")
         if c not in self.space: raise Refused("UNKNOWN_NAME", f"component {c!r}")
         return state if len(self.space) == 1 else state[list(self.space).index(c)]
     def by_rows(self, c, rows, n):
@@ -132,23 +135,29 @@ class Checker:
     def d_param(self, call):
         a = self.args(call, ("name", "value"), ("source",), ("name", "value")); nm = self.plain(a["name"]); t = self.tag(a, call)
         if nm in self.params: raise Refused("DUPLICATE", nm)
-        if not isinstance(nm, str) or not nm.isidentifier() or keyword.iskeyword(nm) or nm in DECLS: raise Refused("BAD_NAME", f"{nm!r} cannot be read from a cell")
+        if not isinstance(nm, str) or not nm.isidentifier() or keyword.iskeyword(nm): raise Refused("BAD_NAME", f"{nm!r} cannot be read from a cell")
         self.params[nm] = self.num(a["value"], t); self.param_src[nm] = t; self.census[t] += 1
     def d_prior(self, call):
+        if "space" not in self.seen: raise Refused("MISSING", "space: the prior comes after the space")
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.prior_src = t
         if not isinstance(a["table"], ast.Dict): raise Refused("NOT_A_DECLARATION", "the prior is a dict keyed by state: it is what says which states exist")
         self.prior = self.table(a["table"], t, 1)
+    def keys_once(self, node, what):
+        ks = [self.key(k) for k in node.keys]
+        if any(k is None for k in node.keys): raise Refused("NOT_A_DECLARATION", f"{what}: no ** in a dict")
+        if len(set(ks)) != len(ks): raise Refused("DUPLICATE", f"{what}: a key is written twice")
+        return ks
     def d_utility(self, call):
         self.states()
         a = self.args(call, ("terminal",), ("ending", "source"), ("terminal",)); t = self.tag(a, call); self.util_src = t
         if not isinstance(a["terminal"], ast.Dict): raise Refused("NOT_A_DECLARATION", "utility({act: table over states}, ...)")
-        self.T = {self.key(k): self.over(v, t, 1) for k, v in zip(a["terminal"].keys, a["terminal"].values)}
+        self.T = {k: self.over(v, t, 1) for k, v in zip(self.keys_once(a["terminal"], "utility"), a["terminal"].values)}
         self.ending = {}
         if "ending" in a:
             if not isinstance(a["ending"], ast.Dict): raise Refused("NOT_A_DECLARATION", "ending={act: {outcome: table over states}}")
-            for k, v in zip(a["ending"].keys, a["ending"].values):
+            for k, v in zip(self.keys_once(a["ending"], "ending"), a["ending"].values):
                 if not isinstance(v, ast.Dict): raise Refused("NOT_A_DECLARATION", "ending={act: {outcome: table over states}}")
-                self.ending[self.key(k)] = {self.key(o): self.over(u, t, 1) for o, u in zip(v.keys, v.values)}
+                self.ending[k] = {o: self.over(u, t, 1) for o, u in zip(self.keys_once(v, f"ending of {k!r}"), v.values)}
     def d_price(self, call):
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.price_src = t; self.prices = self.table(a["table"], t, 1)
     def d_act(self, call):
@@ -287,7 +296,7 @@ HOSTS = {}
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
-              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test"), "prior_of_two_sources.py": (F(0), "hold"), "census_counts_cells.py": (F(-51, 50), "test")}
+              "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test"), "prior_of_two_sources.py": (F(0), "hold"), "census_counts_cells.py": (F(-51, 50), "test"), "param_named_after_a_declaration.py": (F(-51, 50), "test")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue

@@ -1,0 +1,10 @@
+# Builder's Q2 (brief 002): a declaration's name is a lawful parameter name; the page forbids only keywords.
+world("p", closed=True)
+horizon(1, source="elicited")
+depth(1, source="elicited")
+space({"health": ["sick", "well"]})
+param("world", 1/5, source="data")
+prior({"sick": world, "well": 1 - world}, source="data")
+utility({"treat": {"sick": 0, "well": -2}, "leave": {"sick": -10, "well": 0}}, source="elicited")
+price({"test": 1/2}, source="elicited")
+act("test", once=True, kernel=table({"sick": {"+": 9/10, "-": 1/10}, "well": {"+": 1/5, "-": 4/5}}, source="data"), reads=["health"])
