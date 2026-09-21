@@ -8,6 +8,7 @@ utility({"treat": {"sick": 0, "well": -2}, "leave": {"sick": -10, "well": 0}}, s
 price({"test": 1/2}, source="elicited")
 act("test", once=False, kernel=table({"sick": {"+": 9/10, "-": 1/10}, "well": {"+": 1/5, "-": 4/5}}, source="data"), reads=["health"])
 param("c2", 200, source="fitted")
-think(depth=2, fraction=1/2, source="elicited")
+depth_plus(2, source="elicited")
+think(fraction=1/2, source="elicited")
 cost([100, c2], source="elicited")
 rate(1/1000, source="elicited")

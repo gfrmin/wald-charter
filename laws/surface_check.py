@@ -14,9 +14,9 @@ import spec_check as S
 class Refused(Exception):
     def __init__(self, name, msg=""): super().__init__(f"{name}: {msg}"); self.name = name
 TAGS = {"data", "elicited", "fitted"}
-DECLS = ("world", "horizon", "depth", "space", "param", "prior", "utility", "price", "act", "think", "cost", "rate", "score")
+DECLS = ("world", "horizon", "depth", "space", "param", "prior", "utility", "price", "act", "depth_plus", "think", "cost", "rate", "score")
 ONCE_ONLY = ("world", "horizon", "depth", "space", "prior", "utility", "price")
-META_ONCE = ("think", "cost", "rate", "score")          # SURFACE v0.1: optional, each at most once
+META_ONCE = ("depth_plus", "think", "cost", "rate")     # SURFACE v0.1: optional, each at most once; score at most once per table
 
 class Checker:
     def __init__(self, text, hosts=None, data_dir="."):
@@ -162,26 +162,39 @@ class Checker:
     def d_price(self, call):
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.price_src = t; self.prices = self.table(a["table"], t, 1)
     # ---- SURFACE v0.1: the think act
+    def owned(self, n, tag, allowed, name):
+        """a meta-table cell: v0's cell rule, and every parameter it reads has a source the table admits
+        (attack s1 1a: a `data` param behind an `elicited` Rate label).  The fitted fence is num()'s."""
+        for node in ast.walk(n):
+            if isinstance(node, ast.Name) and node.id in self.params and self.param_src[node.id] not in allowed:
+                raise Refused(name, f"line {n.lineno}: reads the {self.param_src[node.id]!r} parameter {node.id!r}; this table admits {sorted(allowed)}")
+        return self.num(n, tag)
+    def d_depth_plus(self, call):
+        a = self.args(call, ("d",), ("source",), ("d",)); t = self.tag(a, call)
+        self.dplus = self.owned(a["d"], t, TAGS, "TABLE_SOURCE"); self.dplus_src = t; self.census[t] += 1
     def d_think(self, call):
-        a = self.args(call, (), ("depth", "fraction", "source"), ("depth", "fraction")); t = self.tag(a, call)
+        a = self.args(call, (), ("fraction", "source"), ("fraction",)); t = self.tag(a, call)
         if t not in ("elicited", "fitted"): raise Refused("FRACTION", f"line {call.lineno}: a fraction is elicited or fitted, not {t!r}")
-        self.dplus = self.num(a["depth"], t); self.fraction = self.num(a["fraction"], t); self.fraction_src = t; self.census[t] += 2
+        self.fraction = self.owned(a["fraction"], t, {"elicited", "fitted"}, "FRACTION"); self.fraction_src = t; self.census[t] += 1
     def d_cost(self, call):
         if "prior" not in self.seen: raise Refused("MISSING", "prior: the cost table comes after the prior, whose states it counts")
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call)
         if t not in ("elicited", "fitted"): raise Refused("COST", f"line {call.lineno}: a cost is elicited or fitted, not {t!r}")
         if not isinstance(a["table"], ast.List): raise Refused("NOT_A_DECLARATION", f"line {call.lineno}: cost is a list, one cell per live-state count, in order")
-        cells = [self.num(e, t) for e in a["table"].elts]
+        cells = [self.owned(e, t, {"elicited", "fitted"}, "COST") for e in a["table"].elts]
         if len(cells) != len(self.prior): raise Refused("COST", f"line {call.lineno}: {len(cells)} cells for {len(self.prior)} states")
         self.ops = {i + 1: c for i, c in enumerate(cells)}; self.cost_src = t; self.census[t] += len(cells)
     def d_rate(self, call):
         a = self.args(call, ("r",), ("source",), ("r",)); t = self.tag(a, call)
         if t != "elicited": raise Refused("RATE", f"line {call.lineno}: the rate is the owner's, source elicited, not {t!r}")
-        self.rate = self.num(a["r"], t); self.rate_src = t; self.census[t] += 1
+        self.rate = self.owned(a["r"], t, {"elicited"}, "RATE"); self.rate_src = t; self.census[t] += 1
     def d_score(self, call):
-        a = self.args(call, ("value",), ("source",), ("value",)); t = self.tag(a, call)
+        a = self.args(call, ("value",), ("of", "source"), ("value", "of")); t = self.tag(a, call); of = self.plain(a["of"])
         if t != "data": raise Refused("TABLE_SOURCE", f"line {call.lineno}: a score is measured, source data, not {t!r}")
-        self.score = self.num(a["value"], t); self.census[t] += 1
+        if of not in ("fraction", "cost"): raise Refused("NOT_A_DECLARATION", f"line {call.lineno}: a score is of the fraction or of the cost")
+        if not hasattr(self, "scores"): self.scores = {}
+        if of in self.scores: raise Refused("DUPLICATE", f"score of {of!r}")
+        self.scores[of] = self.owned(a["value"], t, {"data"}, "TABLE_SOURCE"); self.census[t] += 1
     def d_act(self, call):
         self.states()
         a = self.args(call, ("name",), ("kernel", "once", "reads"), ("name", "kernel", "once", "reads")); nm = self.plain(a["name"])
@@ -266,18 +279,17 @@ class Checker:
              "table_sources": {"prior": self.prior_src, "utility": self.util_src, "price": self.price_src, "horizon": self.N_src, "depth": self.d_src, "kernels": dict(self.kernel_src)},
              "sources": {nm: a["reads"] for nm, a in self.acts.items()}, "components": list(self.space)}
         if self.N.denominator != 1 or self.d.denominator != 1: raise Refused("DEPTH", "horizon and depth are whole numbers")
-        has = {k: k in self.seen for k in META_ONCE}
-        if has["think"] or has["cost"] or has["rate"]:
-            for need in ("think", "cost", "rate"):
+        has = {k: k in self.seen for k in META_ONCE}; scores = getattr(self, "scores", {})
+        if any(has.values()) or scores:
+            for need in META_ONCE:
                 if not has[need]: raise Refused("MISSING", need)
             if self.dplus.denominator != 1: raise Refused("DEPTH_PLUS", "depth+ is a whole number")
             s.update({"dplus": int(self.dplus), "fraction": self.fraction, "rate": self.rate, "ops": self.ops})
-            s["table_sources"].update({"fraction": self.fraction_src, "cost": self.cost_src, "rate": self.rate_src})
-            fitted = "fitted" in (self.fraction_src, self.cost_src)
-            if fitted and not has["score"]: raise Refused("UNSCORED", "a fitted fraction or cost carries its held-out score")
-            if has["score"] and not fitted: raise Refused("MISSING", "the fitted table this score is for")
-            if has["score"]: s["score"] = self.score
-        elif has["score"]: raise Refused("MISSING", "think: a score with nothing to score")
+            s["table_sources"].update({"dplus": self.dplus_src, "fraction": self.fraction_src, "cost": self.cost_src, "rate": self.rate_src})
+            fitted = {t for t, src in (("fraction", self.fraction_src), ("cost", self.cost_src)) if src == "fitted"}
+            if fitted - set(scores): raise Refused("UNSCORED", f"a fitted {sorted(fitted - set(scores))} carries its held-out score")
+            if set(scores) - fitted: raise Refused("MISSING", f"the fitted table this score is for: {sorted(set(scores) - fitted)}")
+            if scores: s["score"] = dict(scores)
         if self.closed: s["closed"] = True
         if self.bottom is not None: s["bottom"] = self.bottom
         if not set(self.prior) <= set(self.product()): raise Refused("TABLE_SHAPE", "the prior names a state outside the space")
@@ -329,7 +341,8 @@ def to_pack(w, N, d):
         rows = "{" + ", ".join(f"{st(s)}: {tbl(r)}" for s, r in a["K"].items()) + "}"
         L.append(f'act({k!r}, once={a["once"]}, kernel=table({rows}, source="data"), reads=["s"])')
     if "dplus" in w:
-        L.append(f'think(depth={w["dplus"]}, fraction={q(w["fraction"])}, source="elicited")')
+        L.append(f'depth_plus({w["dplus"]}, source="elicited")')
+        L.append(f'think(fraction={q(w["fraction"])}, source="elicited")')
         L.append("cost([" + ", ".join(q(w["ops"][i]) for i in range(1, len(w["prior"]) + 1)) + '], source="elicited")')
         L.append(f'rate({q(w["rate"])}, source="elicited")')
     return "\n".join(L) + "\n"
