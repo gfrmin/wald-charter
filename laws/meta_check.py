@@ -49,21 +49,29 @@ class DecidePlus(Ref):
                     if spec["K"][w].get(o, F(0)) > 0: best = max(best, ue[w])
             total += p * best
         return max(v0, total - min(world["O"][k]["price"] for k in M))
+    def vacuous(self, n, world, used):
+        "the first S7 bucket: the deeper evaluation is the same evaluation, or there is nothing to look through"
+        return n <= world["d"] or not self.menu(world, used)
     def gain_bound(self, b, world, n, vd, used):
-        if n <= world["d"] or not self.menu(world, used): return F(0)
+        if self.vacuous(n, world, used): return F(0)
         return self.cap(b, world, used) - vd
     def cost(self, b, world): return world["rate"] * world["ops"][live(b)]
     def step(self, b, world, n, used=frozenset()):
+        """how is S7's bucket: 'floor' (a v0 World), 'struck_n' (n <= d or M has no observational act),
+        'struck_cap' (cap - V_d <= c), 'refused' (Q(theta) formed, not bought), 'think' (theta executed)."""
         d = world.get("d", n)                       # a kit World has had min(d, n) applied already (INTERFACE)
         vd, ad = self.solve(b, world, min(d, n), used)
         if "dplus" not in world: return ad, "floor", F(0)
+        if self.vacuous(n, world, used): return ad, "struck_n", F(0)
         g = self.gain_bound(b, world, n, vd, used)
         c = self.cost(b, world)
-        if g <= c: return ad, "bounds", F(0)                               # S7: theta struck, f not read
+        if g <= c: return ad, "struck_cap", F(0)                           # S7: theta struck, f not read
         if vd + world["fraction"] * g - c > vd:                             # theta last in M: strict (J14)
             return self.solve(b, world, min(world["dplus"], n), used)[1], "think", c    # C17: bought is played
-        return ad, "belief", F(0)
+        return ad, "refused", F(0)
     def decide(self, b, world, n, used=frozenset()): return self.step(b, world, n, used)[0]
+
+HOWS = ("floor", "struck_n", "struck_cap", "refused", "think")
 
 DPLUS = DecidePlus()
 
@@ -178,7 +186,7 @@ def C9a(agent, w, rng):
     for t, u in w["T"].items():
         others = [x for t2, u2 in w["T"].items() if t2 != t for x in u2.values()] + [x for sp in w["O"].values() for ue in sp["ends"].values() for x in ue.values()]
         if others and min(u.values()) > max(others):
-            return agent.step(w["prior"], w, w["N"])[:2] == (t, "bounds" if "dplus" in w else "floor")
+            return agent.step(w["prior"], w, w["N"])[:2] == (t, "struck_cap" if "dplus" in w else "floor")
     return True
 def C10(agent, w, rng):
     "v0 C10 stands under theta: if some Q_1(k) > V_0 the act played is not terminal, thought or not"
@@ -229,7 +237,7 @@ class Peek(DecidePlus):
         vd, ad = self.solve(b, world, min(world["d"], n), used)
         if "dplus" not in world or n <= world["d"]: return ad, "floor", F(0)
         ap = self.solve(b, world, min(world["dplus"], n), used)[1]
-        return (ap, "think", self.cost(b, world)) if ap != ad else (ad, "belief", F(0))
+        return (ap, "think", self.cost(b, world)) if ap != ad else (ad, "refused", F(0))
 class NoBounds(DecidePlus):
     name = "applies f to the utility range, not the proven gap (S6/S7)"
     def gain_bound(self, b, world, n, vd, used):
@@ -242,7 +250,7 @@ class Myopic(DecidePlus):
         if "dplus" not in world or n <= world["d"]: return self.solve(b, world, min(world["d"], n), used)[1], "floor", F(0)
         g = self.cap(b, world, used) - v0; c = self.cost(b, world)
         if g > c and v0 + world["fraction"] * g - c > v0: return self.solve(b, world, min(world["dplus"], n), used)[1], "think", c
-        return a0, "belief", F(0)
+        return a0, "refused", F(0)
 class IgnoresResult(DecidePlus):
     name = "pays for the thought, plays the shallow act anyway (C17)"
     def step(self, b, world, n, used=frozenset()):
@@ -257,11 +265,12 @@ class ThinkFirst(DecidePlus):
         vd, ad = self.solve(b, world, min(world["d"], n), used)
         if "dplus" not in world: return ad, "floor", F(0)
         g = self.gain_bound(b, world, n, vd, used); c = self.cost(b, world)
-        if g <= c: return ad, "bounds", F(0)
+        if g <= c: return ad, "struck_cap", F(0)
         if vd + world["fraction"] * g - c >= vd: return self.solve(b, world, min(world["dplus"], n), used)[1], "think", c
-        return ad, "belief", F(0)
+        return ad, "refused", F(0)
 class ForgetsN(DecidePlus):
     name = "gain bound cap - V_d even when n <= d (thinks for nothing)"
+    def vacuous(self, n, world, used): return False
     def gain_bound(self, b, world, n, vd, used): return self.cap(b, world, used) - vd
 class Clock(DecidePlus):
     name = "cost from a clock: a stand-in that reads nothing declared (E6)"
@@ -283,7 +292,7 @@ class Schedule(DecidePlus):
     def step(self, b, world, n, used=frozenset()):
         ad = self.solve(b, world, min(world["d"], n), used)[1]
         if "dplus" not in world or n <= world["d"]: return ad, "floor", F(0)
-        return (self.solve(b, world, min(world["dplus"], n), used)[1], "think", self.cost(b, world)) if live(b) > 2 else (ad, "belief", F(0))
+        return (self.solve(b, world, min(world["dplus"], n), used)[1], "think", self.cost(b, world)) if live(b) > 2 else (ad, "refused", F(0))
 
 POISONS = [WithCap("the other draft 1's cap: ending branches at the root posterior", cap_root_posterior),
            WithCap("computes the cap by searching to d+ (deliberation about deliberation)",
@@ -326,6 +335,29 @@ def expected_thoughts(agent, w, n=None, b=None, used=frozenset()):
         e += po * expected_thoughts(agent, w, n - 1, REF.condition(b, sp["K"], o), used | {a})
     return e
 
+def fixed_worlds():
+    "Every World the page's appendix and the attack sessions pinned, by name.  The kit runs E2 on all of them."
+    coin = {"prior": {"A": F(1, 2), "B": F(1, 2)},
+            "T": {"pass": {"A": F(0), "B": F(0)}, "guessA": {"A": F(1), "B": F(-5)}, "guessB": {"A": F(-5), "B": F(1)}},
+            "O": {"test": act({"A": {"+": F(2, 3), "-": F(1, 3)}, "B": {"+": F(1, 3), "-": F(2, 3)}}, F(1, 25), False)},
+            "N": 3, "d": 1, "dplus": 2, "fraction": F(1, 2), "rate": F(1, 1000), "ops": {1: F(10), 2: F(10)}}
+    S3 = ["1", "2", "3"]
+    c20 = {"prior": {"1": F(1, 10), "2": F(9, 20), "3": F(9, 20)}, "T": {f"t{i}": {s: F(1 if s == i else 0) for s in S3} for i in S3},
+           "O": {"Y": act({s: {"o": F(2, 3), "r" + s: F(1, 3)} for s in S3}, F(1, 20), True),
+                 "W": act({s: {"o": F(9, 10), "r" + s: F(1, 10)} for s in S3}, F(1, 400), True),
+                 "Z": act({"1": {"z1": F(1)}, "2": {"z2": F(1)}, "3": {"z2": F(1)}}, F(1, 200), True)},
+           "N": 4, "d": 1, "dplus": 2, "fraction": F(1), "rate": F(11, 25), "ops": {1: F(1), 2: F(100), 3: F(1)}}
+    noop = vector_A(); noop["O"] = {"noop": act({"sick": {"z": F(1)}, "well": {"z": F(1)}}, F(0), True), **noop["O"]}
+    return {"A": vector_A(), "B": vector_B(), "A_N3": variants(vector_A(), N=3), "FIXED_CAP": world_FIXED_CAP(),
+            "S1-2B": {"prior": {"A": F(1, 2), "B": F(1, 2)}, "T": {"a": {"A": F(1), "B": F(0)}, "b": {"A": F(0), "B": F(1)}},
+                      "O": {"k": act({"A": {"x": F(1, 2), "y": F(1, 2)}, "B": {"x": F(1, 2), "y": F(1, 2)}}, F(0), False)},
+                      "N": 2, "d": 1, "dplus": 2, "fraction": F(1), "rate": F(1, 4), "ops": {1: F(1), 2: F(1)}},
+            "S1-2C": c20, "S1-2C-lo": variants(c20, rate=F(1, 25)), "COIN-d2": coin, "NOOP": noop,
+            "A-split": {"prior": {"sick": F(1, 5), "well1": F(2, 5), "well2": F(2, 5)},
+                        "T": {"treat": {"sick": F(0), "well1": F(-2), "well2": F(-2)}, "leave": {"sick": F(-10), "well1": F(0), "well2": F(0)}},
+                        "O": {"test": act({"sick": APPX_K["sick"], "well1": APPX_K["well"], "well2": APPX_K["well"]}, F(1, 2), False)},
+                        "N": 2, "d": 1, "dplus": 2, "fraction": F(1, 2), "rate": F(1, 1000), "ops": {1: F(100), 2: F(200), 3: F(600)}}}
+
 def attack_findings():
     "Attack session 1 on draft 3 (2026-09-21): every reproduced finding as a World.  Returns lines."
     L = []
@@ -345,7 +377,7 @@ def attack_findings():
     def kw(p): return {"prior": {"A": F(1, 2), "B": F(1, 2)}, "T": {"a": {"A": F(1), "B": F(0)}, "b": {"A": F(0), "B": F(1)}},
                        "O": {"k": act({"A": {"x": F(1, 2), "y": F(1, 2)}, "B": {"x": F(1, 2), "y": F(1, 2)}}, p, False)},
                        "N": 2, "d": 1, "dplus": 2, "fraction": F(1), "rate": F(1, 4), "ops": {1: F(1), 2: F(1)}}
-    assert DPLUS.step(kw(F(1, 2))["prior"], kw(F(1, 2)), 2)[:2] == ("a", "bounds") and value_net(DPLUS, kw(F(1, 2))) == F(1, 2)
+    assert DPLUS.step(kw(F(1, 2))["prior"], kw(F(1, 2)), 2)[:2] == ("a", "struck_cap") and value_net(DPLUS, kw(F(1, 2))) == F(1, 2)
     assert DPLUS.step(kw(F(0))["prior"], kw(F(0)), 2)[:2] == ("a", "think") and value_net(DPLUS, kw(F(0))) == F(1, 4) < F(1, 2)
     L.append("  s1 2b  C5: making k free: value 1/2 -> 1/4 < V_0 = 1/2.  Conceded: C5 is exempted for the adaptive policy")
     # 2c  C20 per episode: raising r moves the agent onto a branch where it thinks twice.
@@ -357,7 +389,7 @@ def attack_findings():
                         "fraction": F(1), "rate": r, "ops": {1: F(1), 2: F(100), 3: F(1)}}
     lo, hi = c20(F(1, 25)), c20(F(11, 25))
     assert DPLUS.step(lo["prior"], lo, 4)[:2] == ("Z", "think") and expected_thoughts(DPLUS, lo) == F(1) and value_net(DPLUS, lo) == F(1277, 2000)
-    assert DPLUS.step(hi["prior"], hi, 4)[:2] == ("Y", "bounds") and expected_thoughts(DPLUS, hi) == F(19, 15) and value_net(DPLUS, hi) == F(59, 500)
+    assert DPLUS.step(hi["prior"], hi, 4)[:2] == ("Y", "struck_cap") and expected_thoughts(DPLUS, hi) == F(19, 15) and value_net(DPLUS, hi) == F(59, 500)
     assert C20(DPLUS, lo, None) and C20(DPLUS, hi, None)          # per node it holds
     L.append("  s1 2c  C20: r 1/25 -> 11/25 raises E[#theta] 1 -> 19/15.  C20 restated at a node, where it holds")
     # 4a  notation: V_{d+} means V_min(d+,n); at n = 1 the literal V_2 exceeds V_1 while ghat = 0.
@@ -388,7 +420,7 @@ def attack_findings():
           "T": {"treat": {"sick": F(0), "well1": F(-2), "well2": F(-2)}, "leave": {"sick": F(-10), "well1": F(0), "well2": F(0)}},
           "O": {"test": act({"sick": APPX_K["sick"], "well1": APPX_K["well"], "well2": APPX_K["well"]}, F(1, 2), False)},
           "N": 2, "d": 1, "dplus": 2, "fraction": F(1, 2), "rate": F(1, 1000), "ops": {1: F(100), 2: F(200), 3: F(600)}}
-    assert DPLUS.step(Ap["prior"], Ap, 2)[:2] == ("test", "bounds") and value_net(DPLUS, Ap) == F(-51, 50)
+    assert DPLUS.step(Ap["prior"], Ap, 2)[:2] == ("test", "struck_cap") and value_net(DPLUS, Ap) == F(-51, 50)
     L.append("  s2 5   A with `well` split in two: same V, cap, ghat; s = 3, c = 3/5 > 13/25, struck.  Named as a residue: the unit counts rows")
     # confirmation: "returns 0" is not "changes nothing" -- a free noop first in O is decide_2 by J3.
     w = vector_A(); w["O"] = {"noop": act({"sick": {"z": F(1)}, "well": {"z": F(1)}}, F(0), True), **w["O"]}
@@ -406,11 +438,11 @@ def frozen(verbose):
     assert (v1, a1, v2, a2) == (F(-51, 50), "test", F(-51, 50), "test")
     assert cp == F(-1, 2) and g == F(13, 25) and DPLUS.cost(b, w) == F(1, 5)
     assert DPLUS.step(b, w, 2) == ("test", "think", F(1, 5))
-    assert DPLUS.step(b, variants(w, rate=F(1, 100)), 2)[1] == "bounds"
-    assert DPLUS.step(b, variants(w, fraction=F(0)), 2)[1] == "belief"
+    assert DPLUS.step(b, variants(w, rate=F(1, 100)), 2)[1] == "struck_cap"
+    assert DPLUS.step(b, variants(w, fraction=F(0)), 2)[1] == "refused"
     assert DPLUS.step(b, variants(w, fraction=F(1), rate=F(0)), 2)[1] == "think"
     st = {}; fixed = value_net(FixedDepth(1), w); adaptive = value_net(DPLUS, w, stats=st); om = omniscient_value(w)
-    assert fixed == F(-51, 50) and adaptive == F(-61, 50) and om == fixed and st == {"think": 1, "bounds": 2}
+    assert fixed == F(-51, 50) and adaptive == F(-61, 50) and om == fixed and st == {"think": 1, "struck_n": 2}
     lines.append(f"  A: V_1 = {v1} ({a1}), V_2 = {v2} ({a2}), cap = {cp}, gain bound = {g}, c = 1/5: thinks, plays {a2}, gains 0")
     lines.append(f"     fixed-d {fixed}, adaptive {adaptive}, omniscient {om}; steps {st}")
     # B
@@ -418,8 +450,8 @@ def frozen(verbose):
     v1, a1 = REF.solve(b, w, 1); v2, a2 = REF.solve(b, w, 2); cp = DPLUS.cap(b, w); g = DPLUS.gain_bound(b, w, 2, v1, frozenset())
     assert (v1, a1, v2, a2) == (F(-51, 50), "test", F(-479, 500), "scan") and cp == F(-1, 5) and g == F(41, 50)
     assert DPLUS.step(b, w, 2) == ("scan", "think", F(1, 5))
-    assert DPLUS.step(b, variants(w, rate=F(1, 400)), 2)[:2] == ("test", "belief")
-    assert DPLUS.step(b, variants(w, rate=F(1, 200)), 2)[:2] == ("test", "bounds")
+    assert DPLUS.step(b, variants(w, rate=F(1, 400)), 2)[:2] == ("test", "refused")
+    assert DPLUS.step(b, variants(w, rate=F(1, 200)), 2)[:2] == ("test", "struck_cap")
     fixed = value_net(FixedDepth(1), w); adaptive = value_net(DPLUS, w); om = omniscient_value(w)
     assert fixed == v1 and adaptive == v2 - F(1, 5) and om == fixed and v2 - v1 == F(31, 500)
     lines.append(f"  B: V_1 = {v1} ({a1}), V_2 = {v2} ({a2}), cap = {cp}, gain bound = {g}, c = 1/5: thinks, plays {a2}")

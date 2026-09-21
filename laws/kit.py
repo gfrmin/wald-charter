@@ -9,6 +9,7 @@ kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in
    on forced-tie variants of those worlds (J3), and on the appendix vector.
 4. kit v0.3: the SURFACE page (kit_surface.py): the pack corpus, and random Worlds printed as packs and read back.
 3. kit v0.1: the structural surface (kit_structural.py): seals, inert Display, named refusals, single-use Obs, the loop's order.
+5. kit v0.7: the think act (kit_think.py) under CHARTER v0.1: step's five buckets, C12-C20, E2 on the pinned Worlds, refusals by name.
 Exit code 0 = the implementation passes. Nothing else counts.
 """
 import argparse, importlib, os, random, sys
@@ -100,6 +101,8 @@ def main():
     if not kit_wordle.main(a.impl, a.seed): ok = False
     import kit_wordle_big
     if not kit_wordle_big.main(a.impl, a.seed): ok = False
+    import kit_think
+    if not kit_think.main(a.impl, a.seed): ok = False
     print("IMPLEMENTATION PASSES" if ok else "IMPLEMENTATION FAILS"); return 0 if ok else 1
 
 if __name__ == "__main__": sys.exit(main())
