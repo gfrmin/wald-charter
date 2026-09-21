@@ -23,11 +23,11 @@ THETA = "θ"
 def live(b): return sum(1 for p in b.values() if p > 0)
 
 def refuse_meta(world):
-    "S6, the cost table total over s, d < d+ <= N.  Refusal names FRACTION, COST, DEPTH_PLUS."
+    "S6, the cost table total over s, (d, d+, N) = (1, 2, >=2), r >= 0.  Refusal names FRACTION, COST, RATE, DEPTH_PLUS."
     if "dplus" not in world: return
     if not (0 <= world["fraction"] <= 1): raise Refused("FRACTION")
-    if world["rate"] < 0 or set(world["ops"]) != set(range(1, len(world["prior"]) + 1)) or min(world["ops"].values()) < 0:
-        raise Refused("COST")
+    if set(world["ops"]) != set(range(1, len(world["prior"]) + 1)) or min(world["ops"].values()) < 0: raise Refused("COST")
+    if world["rate"] < 0: raise Refused("RATE")                      # ERRATA on CHARTER v0.1 (brief 005a, Q4); SURFACE v0.1 K15
     if not (world["d"] == 1 and world["dplus"] == 2 and world["N"] >= 2): raise Refused("DEPTH_PLUS")   # J11 (attack 2, 1.1)
 
 class DecidePlus(Ref):
@@ -166,11 +166,12 @@ def C17(agent, w, rng):
     "bought is played: having thought, the act is decide_min(d+,n)'s"
     return all(a == REF.solve(b, w, min(w["dplus"], n), used)[1] for b, used, n, a, how in reachable(agent, w) if how == "think")
 def C19(agent, w, rng):
-    """the cap is not deliberation: it reads no d+ and no value above depth d.  Tested by varying d+ on the dict --
-    a dict with d+ = N is not a lawful v0.1 World (J11, refused DEPTH_PLUS); it is a probe of the function."""
+    """the cap is not deliberation: it reads no d+ and no lookahead value.  A check on the REFERENCE's cap only --
+    kit v0.7 probed the implementation with d+ = N, a World J11 refuses, and forced a `build`/`declare` split
+    (brief 005a); the implementation is held to C19 through E2 on lawful Worlds and by reading the kernel."""
     if "dplus" not in w or w["N"] < 3: return True
-    hows = {agent.step(w["prior"], variants(w, dplus=dp), w["N"])[1] for dp in (2, w["N"])}
-    return len(hows) == 1 and DPLUS.cap(w["prior"], w) == DPLUS.cap(w["prior"], variants(w, dplus=w["N"]))
+    b0 = w["prior"]
+    return DPLUS.cap(b0, w) == DPLUS.cap(b0, variants(w, dplus=w["N"])) == DPLUS.cap(b0, variants(w, dplus=2))
 def C20(agent, w, rng):
     "monotone price AT A NODE: at every node the reference reaches, raising r never turns a non-think into a think (attack 1, 2c: over an episode the count can rise)"
     if "dplus" not in w: return True

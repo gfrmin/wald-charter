@@ -10,6 +10,7 @@ kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in
 4. kit v0.3: the SURFACE page (kit_surface.py): the pack corpus, and random Worlds printed as packs and read back.
 3. kit v0.1: the structural surface (kit_structural.py): seals, inert Display, named refusals, single-use Obs, the loop's order.
 5. kit v0.7: the think act (kit_think.py) under CHARTER v0.1: step's five buckets, C12-C20, E2 on the pinned Worlds, refusals by name.
+6. kit v0.8: SURFACE v0.1 (the corpus grows: depth_plus, think, cost, rate, score), RATE for r < 0, C19 on the reference only.
 Exit code 0 = the implementation passes. Nothing else counts.
 """
 import argparse, importlib, os, random, sys

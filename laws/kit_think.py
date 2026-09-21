@@ -6,7 +6,7 @@ Called from kit.py as kit_think.main(impl, seed) -> bool.  What it asks of the i
   agent.step(b, world, n, used) -> (act, how, paid)     the v0.1 step: `how` in {"floor", "struck_n", "struck_cap",
                                                         "refused", "think"} (S7's buckets; "floor" for a World without
                                                         theta), `paid` the predicted cost c charged (0 unless "think").
-  wald.world.declare(spec)                              refuses by name FRACTION, COST, DEPTH_PLUS, RATE, UNSCORED.
+  wald.world.declare(spec)                              refuses by name FRACTION, COST, DEPTH_PLUS, RATE, UNSCORED, and TABLE_SOURCE for a Depth+ source other than elicited.
 
 A World dict may carry d, dplus, fraction, rate, ops (and table_sources gains fraction, cost, rate; score for a fitted
 meta-table).  Without dplus it is a v0 World and step must report "floor" and play decide_min(d, n).
@@ -36,7 +36,7 @@ def v0_spec(w, **extra):
                               "depth": "elicited", "kernels": {k: ["elicited"] for k in w["O"]}}}
     if "dplus" in w:
         spec.update({"dplus": w["dplus"], "fraction": w["fraction"], "rate": w["rate"], "ops": w["ops"]})
-        spec["table_sources"].update({"fraction": "elicited", "cost": "elicited", "rate": "elicited"})
+        spec["table_sources"].update({"dplus": "elicited", "fraction": "elicited", "cost": "elicited", "rate": "elicited"})
     spec.update(extra); return spec
 
 def refusal_cases():
@@ -55,6 +55,8 @@ def refusal_cases():
         ("DEPTH_PLUS", v0_spec(A, d=2, N=3, dplus=3)),
         ("DEPTH_PLUS", v0_spec(A, N=1, dplus=2)),
         ("RATE", v0_spec(A, table_sources=bad_ts(rate="fitted"))),
+        ("RATE", v0_spec(A, rate=F(-1, 1000))),                       # kit v0.8: ERRATA on CHARTER v0.1, SURFACE v0.1 K15
+        ("TABLE_SOURCE", v0_spec(A, table_sources=bad_ts(dplus="fitted"))),   # SURFACE v0.1 K18
         ("UNSCORED", v0_spec(A, table_sources=bad_ts(fraction="fitted"))),
         ("UNSCORED", v0_spec(A, table_sources=bad_ts(cost="fitted"))),
     ]
@@ -122,7 +124,9 @@ if __name__ == "__main__":
                     if ts.get("fraction") not in ("elicited", "fitted"): raise S.Refused("FRACTION")
                     if ts.get("cost") not in ("elicited", "fitted"): raise S.Refused("COST")
                     if ts.get("rate") != "elicited": raise S.Refused("RATE")
-                    if "fitted" in (ts.get("fraction"), ts.get("cost")) and "score" not in spec: raise S.Refused("UNSCORED")
+                    if ts.get("dplus") != "elicited": raise S.Refused("TABLE_SOURCE")
+                    fitted = {t for t in ("fraction", "cost") if ts.get(t) == "fitted"}
+                    if fitted - set(spec.get("score", {})): raise S.Refused("UNSCORED")
                 return spec
         good = main(None, 5, agent=M.DPLUS, declare=Decl.declare, refused_cls=S.Refused)
         bad = main(None, 5, agent=M.Peek(), declare=Decl.declare, refused_cls=S.Refused, quiet=True)
