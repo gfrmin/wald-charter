@@ -1,5 +1,5 @@
 """
-surface_check.py - tests the SURFACE page (SURFACE.md), not any implementation.
+surface_check.py - tests the SURFACE pages (SURFACE.md and SURFACE-v0.1.md), not any implementation.
 Part 1  a reference checker: pack text -> World spec (INTERFACE.md), or Refused(name). Parses with `ast`; never executes a pack.
 Part 2  the corpus: every pack under packs/ok must elaborate and give the frozen answer; every pack under
         packs/poison must be refused by the name on its first line (`# expect: NAME`).
@@ -14,8 +14,9 @@ import spec_check as S
 class Refused(Exception):
     def __init__(self, name, msg=""): super().__init__(f"{name}: {msg}"); self.name = name
 TAGS = {"data", "elicited", "fitted"}
-DECLS = ("world", "horizon", "depth", "space", "param", "prior", "utility", "price", "act")
+DECLS = ("world", "horizon", "depth", "space", "param", "prior", "utility", "price", "act", "think", "cost", "rate", "score")
 ONCE_ONLY = ("world", "horizon", "depth", "space", "prior", "utility", "price")
+META_ONCE = ("think", "cost", "rate", "score")          # SURFACE v0.1: optional, each at most once
 
 class Checker:
     def __init__(self, text, hosts=None, data_dir="."):
@@ -29,7 +30,7 @@ class Checker:
             if not (isinstance(st, ast.Expr) and isinstance(st.value, ast.Call) and isinstance(st.value.func, ast.Name) and st.value.func.id in DECLS):
                 raise Refused("NOT_A_DECLARATION", f"line {st.lineno}: a pack is a list of declarations and nothing else")
             name = st.value.func.id
-            if name in ONCE_ONLY and name in self.seen: raise Refused("DUPLICATE", name)
+            if (name in ONCE_ONLY or name in META_ONCE) and name in self.seen: raise Refused("DUPLICATE", name)
             self.seen[name] = True
             getattr(self, "d_" + name)(st.value)
     # ---- argument plumbing
@@ -160,6 +161,27 @@ class Checker:
                 self.ending[k] = {o: self.over(u, t, 1) for o, u in zip(self.keys_once(v, f"ending of {k!r}"), v.values)}
     def d_price(self, call):
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.price_src = t; self.prices = self.table(a["table"], t, 1)
+    # ---- SURFACE v0.1: the think act
+    def d_think(self, call):
+        a = self.args(call, (), ("depth", "fraction", "source"), ("depth", "fraction")); t = self.tag(a, call)
+        if t not in ("elicited", "fitted"): raise Refused("FRACTION", f"line {call.lineno}: a fraction is elicited or fitted, not {t!r}")
+        self.dplus = self.num(a["depth"], t); self.fraction = self.num(a["fraction"], t); self.fraction_src = t; self.census[t] += 2
+    def d_cost(self, call):
+        if "prior" not in self.seen: raise Refused("MISSING", "prior: the cost table comes after the prior, whose states it counts")
+        a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call)
+        if t not in ("elicited", "fitted"): raise Refused("COST", f"line {call.lineno}: a cost is elicited or fitted, not {t!r}")
+        if not isinstance(a["table"], ast.List): raise Refused("NOT_A_DECLARATION", f"line {call.lineno}: cost is a list, one cell per live-state count, in order")
+        cells = [self.num(e, t) for e in a["table"].elts]
+        if len(cells) != len(self.prior): raise Refused("COST", f"line {call.lineno}: {len(cells)} cells for {len(self.prior)} states")
+        self.ops = {i + 1: c for i, c in enumerate(cells)}; self.cost_src = t; self.census[t] += len(cells)
+    def d_rate(self, call):
+        a = self.args(call, ("r",), ("source",), ("r",)); t = self.tag(a, call)
+        if t != "elicited": raise Refused("RATE", f"line {call.lineno}: the rate is the owner's, source elicited, not {t!r}")
+        self.rate = self.num(a["r"], t); self.rate_src = t; self.census[t] += 1
+    def d_score(self, call):
+        a = self.args(call, ("value",), ("source",), ("value",)); t = self.tag(a, call)
+        if t != "data": raise Refused("TABLE_SOURCE", f"line {call.lineno}: a score is measured, source data, not {t!r}")
+        self.score = self.num(a["value"], t); self.census[t] += 1
     def d_act(self, call):
         self.states()
         a = self.args(call, ("name",), ("kernel", "once", "reads"), ("name", "kernel", "once", "reads")); nm = self.plain(a["name"])
@@ -244,6 +266,18 @@ class Checker:
              "table_sources": {"prior": self.prior_src, "utility": self.util_src, "price": self.price_src, "horizon": self.N_src, "depth": self.d_src, "kernels": dict(self.kernel_src)},
              "sources": {nm: a["reads"] for nm, a in self.acts.items()}, "components": list(self.space)}
         if self.N.denominator != 1 or self.d.denominator != 1: raise Refused("DEPTH", "horizon and depth are whole numbers")
+        has = {k: k in self.seen for k in META_ONCE}
+        if has["think"] or has["cost"] or has["rate"]:
+            for need in ("think", "cost", "rate"):
+                if not has[need]: raise Refused("MISSING", need)
+            if self.dplus.denominator != 1: raise Refused("DEPTH_PLUS", "depth+ is a whole number")
+            s.update({"dplus": int(self.dplus), "fraction": self.fraction, "rate": self.rate, "ops": self.ops})
+            s["table_sources"].update({"fraction": self.fraction_src, "cost": self.cost_src, "rate": self.rate_src})
+            fitted = "fitted" in (self.fraction_src, self.cost_src)
+            if fitted and not has["score"]: raise Refused("UNSCORED", "a fitted fraction or cost carries its held-out score")
+            if has["score"] and not fitted: raise Refused("MISSING", "the fitted table this score is for")
+            if has["score"]: s["score"] = self.score
+        elif has["score"]: raise Refused("MISSING", "think: a score with nothing to score")
         if self.closed: s["closed"] = True
         if self.bottom is not None: s["bottom"] = self.bottom
         if not set(self.prior) <= set(self.product()): raise Refused("TABLE_SHAPE", "the prior names a state outside the space")
@@ -264,6 +298,11 @@ def validate(s, omega):
         for o, u in a["ends"].items():
             if o not in outs or set(u) != omega: raise Refused("TABLE_SHAPE", f"ending {o!r} of {k!r}")
     if not (1 <= s["d"] <= s["N"]): raise Refused("DEPTH")
+    if "dplus" in s:                                                  # CHARTER v0.1
+        if not (0 <= s["fraction"] <= 1): raise Refused("FRACTION")
+        if set(s["ops"]) != set(range(1, len(omega) + 1)) or min(s["ops"].values()) < 0: raise Refused("COST")
+        if s["rate"] < 0: raise Refused("RATE")
+        if not (s["d"] == 1 and s["dplus"] == 2 and s["N"] >= 2): raise Refused("DEPTH_PLUS")
     if not s.get("closed"):
         b = s.get("bottom")
         if b not in omega or any(r.get(o, 0) <= 0 for a in s["O"].values() for r in [a["K"][b]] for o in {o for rr in a["K"].values() for o in rr}): raise Refused("ZERO_EVIDENCE")
@@ -289,6 +328,10 @@ def to_pack(w, N, d):
     for k, a in w["O"].items():
         rows = "{" + ", ".join(f"{st(s)}: {tbl(r)}" for s, r in a["K"].items()) + "}"
         L.append(f'act({k!r}, once={a["once"]}, kernel=table({rows}, source="data"), reads=["s"])')
+    if "dplus" in w:
+        L.append(f'think(depth={w["dplus"]}, fraction={q(w["fraction"])}, source="elicited")')
+        L.append("cost([" + ", ".join(q(w["ops"][i]) for i in range(1, len(w["prior"]) + 1)) + '], source="elicited")')
+        L.append(f'rate({q(w["rate"])}, source="elicited")')
     return "\n".join(L) + "\n"
 
 HOSTS = {}
@@ -321,4 +364,18 @@ if __name__ == "__main__":
         e = check(to_pack(w2, 2, 2))
         if any(e[k] != w2[k] for k in ("prior", "T", "O")) or list(e["T"]) != list(w2["T"]) or list(e["O"]) != list(w2["O"]): bad += 1
     print(f"round trip: {200 - bad}/200 random Worlds survive being printed as a pack and read back"); ok &= bad == 0
+    import meta_check as M
+    rng = random.Random(2027); bad = 0
+    for i in range(100):
+        w = M.rand_meta_world(rng); ren = {s: f"e{s[0]}z{s[1]}" for s in w["prior"]}
+        w2 = {**w, "prior": {ren[s]: p for s, p in w["prior"].items()}, "T": {t: {ren[s]: x for s, x in u.items()} for t, u in w["T"].items()},
+              "O": {k: {"K": {ren[s]: r for s, r in a["K"].items()}, "price": a["price"], "once": a["once"], "ends": {o: {ren[s]: x for s, x in u.items()} for o, u in a["ends"].items()}} for k, a in w["O"].items()}}
+        e = check(to_pack(w2, w2["N"], w2["d"]))
+        if any(e[k] != w2[k] for k in ("prior", "T", "O", "N", "d", "dplus", "fraction", "rate", "ops")): bad += 1
+    print(f"round trip with a thought (R5): {100 - bad}/100 v0.1 Worlds survive"); ok &= bad == 0
+    frozen_thoughts = {"appendix_think.py": ("think", "test"), "two_tests_think.py": ("think", "scan"), "think_struck_by_rate.py": ("struck_cap", "test"), "think_fitted_scored.py": ("think", "test")}
+    for fn, want in frozen_thoughts.items():
+        w = check(open(os.path.join(here, "packs/ok", fn)).read(), HOSTS, os.path.join(here, "packs/ok"))
+        a_, how, paid = M.DPLUS.step(w["prior"], w, w["N"]); good = (how, a_) == want; ok &= good
+        print(f"  {'ok ' if good else 'BAD'} {fn:26s} decide+ at the root: {how}, {a_}, paid {paid}")
     print("\nSURFACE PASSES" if ok else "\nSURFACE FAILS"); sys.exit(0 if ok else 1)

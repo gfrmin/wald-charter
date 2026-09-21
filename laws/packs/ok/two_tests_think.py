@@ -1,0 +1,13 @@
+# CHARTER v0.1 appendix B: the thought that changes the act. decide+ at the root: think, scan, paid 1/5.
+world("p", closed=True)
+horizon(2, source="elicited")
+depth(1, source="elicited")
+space({"health": ["sick", "well"]})
+prior({"sick": 1/5, "well": 4/5}, source="data")
+utility({"treat": {"sick": 0, "well": -2}, "leave": {"sick": -10, "well": 0}}, source="elicited")
+price({"test": 1/2, "scan": 1/5}, source="elicited")
+act("test", once=True, kernel=table({"sick": {"+": 9/10, "-": 1/10}, "well": {"+": 1/5, "-": 4/5}}, source="data"), reads=["health"])
+act("scan", once=True, kernel=table({"sick": {"y": 9/10, "n": 1/10}, "well": {"y": 2/5, "n": 3/5}}, source="data"), reads=["health"])
+think(depth=2, fraction=1/2, source="elicited")
+cost([100, 200], source="elicited")
+rate(1/1000, source="elicited")
