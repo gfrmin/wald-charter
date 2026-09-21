@@ -1,14 +1,14 @@
 # SURFACE v0.1 — amendment: declaring the think act
 
-Status: **draft 2, unsigned.** In force from the author-signed tag `surface-v0.1`, together with `surface-v0`. Where the two pages speak of the same thing, this page decides; everything it does not mention stands as signed. This page gives syntax to the five tables CHARTER v0.1 adds (Depth⁺, Fraction, Cost, Rate, Score) and nothing else. `laws/surface_check.py` is amended to be its reference checker; `laws/packs/{ok,poison}` gain its corpus.
+Status: **draft 3, unsigned.** In force from the author-signed tag `surface-v0.1`, together with `surface-v0`. Where the two pages speak of the same thing, this page decides; everything it does not mention stands as signed. This page gives syntax to the five tables CHARTER v0.1 adds (Depth⁺, Fraction, Cost, Rate, Score) and nothing else. `laws/surface_check.py` is amended to be its reference checker; `laws/packs/{ok,poison}` gain its corpus.
 
-Marks **[K12]–[K16]** are author judgements, ruled in §7.
+Marks **[K12]–[K17]** are author judgements, ruled in §7.
 
 ## 1. Five more declarations
 
 | declaration | says |
 | --- | --- |
-| `depth_plus(d⁺, source=…)` | Depth⁺, a whole number with its own source, exactly as `depth(d, source=…)` is (K6: depths are sourced separately). Written out although CHARTER v0.1 J11 fixes it at 2: no defaults. |
+| `depth_plus(d⁺, source="elicited")` | Depth⁺, a whole number, declared as `depth(d, source=…)` is (K6: depths are sourced separately) but with one admissible source: it is the owner's, fixed by CHARTER v0.1 J11, so `elicited`; any other is `TABLE_SOURCE`. Written out although J11 fixes it at 2: no defaults. |
 | `think(fraction=number, source=…)` | the think act θ and its Fraction f: a cell (a number, a `param`, or arithmetic over them, §3 of v0). The source is f's: `elicited` or `fitted`, anything else `FRACTION`. **[K13]** |
 | `cost([number, …], source=…)` | the Cost table: the s-th entry is ops(s), the predicted operations of one think act at s live states, for s = 1 … \|Ω\|. **A list, positional, exactly \|Ω\| long**: the keys are positions, and no numeral stands for a key **[K12]**. Comes after `prior` (\|Ω\| is what the prior names, K10). A list of the wrong length, or a negative cell, or a source other than `elicited` or `fitted`, is `COST`. |
 | `rate(number, source="elicited")` | the Rate r, utility per operation, the owner's. Its source is `elicited`; any other is `RATE`. |
@@ -16,13 +16,13 @@ Marks **[K12]–[K16]** are author judgements, ruled in §7.
 
 `depth_plus`, `think`, `cost` and `rate` come together or not at all: any of them without the others is `MISSING`. A pack without them is a v0 pack and elaborates exactly as before. Each appears at most once (`DUPLICATE`); `score` at most once per table.
 
-**What a meta-table's cell may read [K16].** Every cell of these five tables is a cell in v0 §3's sense, and v0's fence stands unchanged: a `fitted` `param` read by any table whose source is not `fitted` is `TABLE_SOURCE` — `rate`, `depth_plus` and `score` included, for which a `fitted` number therefore has no lawful spelling. Beyond the fence, a meta-table admits only parameters of a source it could itself declare: `think` and `cost` read `elicited` or `fitted` parameters, `rate` reads `elicited` ones, `score` reads `data` ones; a parameter of another source behind a lawful label is refused by the table's own name (`FRACTION`, `COST`, `RATE`, `TABLE_SOURCE` for `score` and `depth_plus`). A meta-belief is the owner's number or a fit; it does not arrive from a `data` file under an `elicited` label.
+**What a meta-table's cell may read [K16].** Every cell of these five tables is a cell in v0 §3's sense, and v0's fence stands unchanged: a `fitted` `param` read by any table whose source is not `fitted` is `TABLE_SOURCE` — so a `fitted` number has no lawful spelling in `rate`, `depth_plus` or `score`. Beyond the fence, a meta-table admits a parameter only if the parameter's **provenance** — its own source together with the sources of every parameter its own cell reads, transitively — lies within the sources the table could itself declare: `think` and `cost` admit `elicited` and `fitted`, `rate` and `depth_plus` admit `elicited`, `score` admits `data`. A parameter of other provenance behind a lawful label is refused by the table's own name (`FRACTION`, `COST`, `RATE`; `TABLE_SOURCE` for `score` and `depth_plus`). Routing a number through a second `param` does not change its provenance, as v0's corpus already holds for the fence (`a1_1.2_laundered_parameter.py`). A meta-belief is the owner's number or a fit, and a Score is a measurement; neither arrives from elsewhere under a lawful label.
 
 The World the checker builds gains `dplus`, `fraction`, `rate`, `ops`, `table_sources.dplus`, `.fraction`, `.cost`, `.rate`, and `score` as `{"fraction": number, "cost": number}` for the fitted tables (INTERFACE.md, kit v0.8). `declare` then applies CHARTER v0.1's own refusals: `FRACTION` (f outside [0, 1]), `COST` (a cell below 0), `RATE` (r below 0, per ERRATA on CHARTER v0.1), `DEPTH_PLUS` (d ≠ 1, or Depth⁺ ≠ 2, or N < 2, alongside a `think`).
 
 ## 2. Numbers (CHARTER v0.1 S3)
 
-To v0 §3's six tables add five places a number may appear: `depth_plus`'s number, `think`'s `fraction`, each `cost` entry, `rate`'s number, each `score`'s number. Each is a cell in the sense of v0 §3 — an integer, a ratio, a `param`, or arithmetic over these; no decimals. The census counts as v0 does: a `param` counts once where it is declared, under its own source, and a cell counts once under its table's source whether written in place or read from a `param`. The positions of a `cost` list are not numbers and are not counted **[K12]**.
+To v0 §3's six tables add five places a number may appear: `depth_plus`'s number, `think`'s `fraction`, each `cost` entry, `rate`'s number, each `score`'s number. Each is a cell in the sense of v0 §3 — an integer, a ratio, a `param`, or arithmetic over these; no decimals. The census counts as v0's checker does **[K17]**: a `param` counts once where it is declared, under its own source, and a cell counts once under its table's source whether written in place or read from a `param`. This is one reading of v0 §3's "a parameter keeps its own source wherever it is read"; it is the reading `laws/surface_check.py` has implemented since `surface-v0`, and this page makes it the reading in force. Under it a `fitted` table whose one cell reads an `elicited` `param` contributes one `fitted` quantity and the `param` one `elicited` quantity. The positions of a `cost` list are not numbers and are not counted **[K12]**.
 
 ## 3. What a pack still cannot say
 
@@ -50,11 +50,13 @@ The positional `cost` list is the first table whose key is a count rather than a
 | K13 | five declarations — `depth_plus`, `think`, `cost`, `rate`, `score` — one per table of CHARTER v0.1 S3, each with its own source as K6 requires; Depth⁺ written out although J11 fixes it (no defaults) | | |
 | K14 | `score` is a `data`-sourced quantity naming the table it scores by `of`; exactly one per fitted table | | |
 | K15 | the surface does not repeat `declare`'s range and depth checks under its own names; the kernel's refusal names stand for both | | |
-| K16 | a meta-table admits only parameters of a source it could itself declare, refused by the table's own name; v0's fence is unchanged and covers every cell | | |
+| K16 | a meta-table admits only parameters whose provenance (own source and, transitively, the sources of every parameter their cells read) lies within the sources it could declare, refused by the table's own name; v0's fence is unchanged and covers every cell; `depth_plus` is `elicited` only | | |
+| K17 | the census reading in force: a parameter counts once under its own source at declaration, a cell once under its table's source; an erratum on v0 §3's wording is queued | | |
 
 Attack sessions:
 
 - Session 1, on draft 1 (2026-09-21): 7 findings claimed (1a, 1b, 2a, 2b, 3, 4, 5); 5 reproduced against the draft checker or the pages (1a accepted by the checker; 1b and 3 refused by the checker but admitted by the page's words; 2a/4 a contradiction with CHARTER v0.1 S3; 2b unsayable), 5 the census rule left unstated. Resolved in draft 2: Depth⁺ is its own declaration with its own source (K13 amended); `score` names its table and repeats per fitted table (K14 amended); K16 added, with `owned` in the checker and eleven new poison packs; §2 states v0's census rule. No act of any pack accepted by both drafts changed.
+- Session 2, on draft 2 (2026-09-21): 3 findings claimed (1.1, 4.1, 4.2), categories 2, 3, 5 clean; all 3 reproduced against the draft checker (1.1 accepted both ways — a `data` number into `rate` and an `elicited` one into `score`, each through a second `param`; 4.1 a `fitted` `depth_plus` accepted against K16's words; 4.2 lawful, its census the draft's reading). Resolved in draft 3: K16 restated on provenance, with five new poison packs; `depth_plus` is `elicited` only; K17 states the census reading in force and queues an erratum on v0 §3. One lawful pack added for 4.2. No act of any pack accepted by both drafts changed.
 
 ## Appendix — CHARTER v0.1's vector A, as a pack
 

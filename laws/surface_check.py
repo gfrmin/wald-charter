@@ -21,7 +21,7 @@ META_ONCE = ("depth_plus", "think", "cost", "rate")     # SURFACE v0.1: optional
 class Checker:
     def __init__(self, text, hosts=None, data_dir="."):
         self.hosts, self.data_dir = hosts or {}, data_dir
-        self.params, self.param_src, self.read, self.seen, self.census = {}, {}, set(), {}, {t: 0 for t in TAGS}
+        self.params, self.param_src, self.param_prov, self.read, self.seen, self.census = {}, {}, {}, set(), {}, {t: 0 for t in TAGS}
         self.host_prints = {}
         self.acts, self.kernel_src = {}, {}
         try: tree = ast.parse(text)
@@ -138,6 +138,11 @@ class Checker:
         if nm in self.params: raise Refused("DUPLICATE", nm)
         if not isinstance(nm, str) or not nm.isidentifier() or keyword.iskeyword(nm): raise Refused("BAD_NAME", f"{nm!r} cannot be read from a cell")
         self.params[nm] = self.num(a["value"], t); self.param_src[nm] = t; self.census[t] += 1
+        # SURFACE v0.1 K16: a parameter's provenance is its own source and every source of every parameter its cell reads
+        prov = {t}
+        for node in ast.walk(a["value"]):
+            if isinstance(node, ast.Name) and node.id in self.params: prov |= self.param_prov[node.id]
+        self.param_prov[nm] = prov
     def d_prior(self, call):
         if "space" not in self.seen: raise Refused("MISSING", "space: the prior comes after the space")
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.prior_src = t
@@ -163,15 +168,17 @@ class Checker:
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.price_src = t; self.prices = self.table(a["table"], t, 1)
     # ---- SURFACE v0.1: the think act
     def owned(self, n, tag, allowed, name):
-        """a meta-table cell: v0's cell rule, and every parameter it reads has a source the table admits
-        (attack s1 1a: a `data` param behind an `elicited` Rate label).  The fitted fence is num()'s."""
+        """a meta-table cell: v0's cell rule, and every parameter it reads descends only from sources the table
+        admits (attack s1 1a: a `data` param behind an `elicited` Rate label; s2 1.1: the same through a second
+        param).  The fitted fence is num()'s."""
         for node in ast.walk(n):
-            if isinstance(node, ast.Name) and node.id in self.params and self.param_src[node.id] not in allowed:
-                raise Refused(name, f"line {n.lineno}: reads the {self.param_src[node.id]!r} parameter {node.id!r}; this table admits {sorted(allowed)}")
+            if isinstance(node, ast.Name) and node.id in self.params and not self.param_prov[node.id] <= allowed:
+                raise Refused(name, f"line {n.lineno}: reads {node.id!r}, whose provenance is {sorted(self.param_prov[node.id])}; this table admits {sorted(allowed)}")
         return self.num(n, tag)
     def d_depth_plus(self, call):
         a = self.args(call, ("d",), ("source",), ("d",)); t = self.tag(a, call)
-        self.dplus = self.owned(a["d"], t, TAGS, "TABLE_SOURCE"); self.dplus_src = t; self.census[t] += 1
+        if t != "elicited": raise Refused("TABLE_SOURCE", f"line {call.lineno}: depth+ is the owner's (J11), source elicited, not {t!r}")
+        self.dplus = self.owned(a["d"], t, {"elicited"}, "TABLE_SOURCE"); self.dplus_src = t; self.census[t] += 1
     def d_think(self, call):
         a = self.args(call, (), ("fraction", "source"), ("fraction",)); t = self.tag(a, call)
         if t not in ("elicited", "fitted"): raise Refused("FRACTION", f"line {call.lineno}: a fraction is elicited or fitted, not {t!r}")
@@ -386,7 +393,7 @@ if __name__ == "__main__":
         e = check(to_pack(w2, w2["N"], w2["d"]))
         if any(e[k] != w2[k] for k in ("prior", "T", "O", "N", "d", "dplus", "fraction", "rate", "ops")): bad += 1
     print(f"round trip with a thought (R5): {100 - bad}/100 v0.1 Worlds survive"); ok &= bad == 0
-    frozen_thoughts = {"appendix_think.py": ("think", "test"), "two_tests_think.py": ("think", "scan"), "think_struck_by_rate.py": ("struck_cap", "test"), "think_fitted_scored.py": ("think", "test")}
+    frozen_thoughts = {"appendix_think.py": ("think", "test"), "two_tests_think.py": ("think", "scan"), "think_struck_by_rate.py": ("struck_cap", "test"), "think_fitted_scored.py": ("think", "test"), "fitted_think_reads_elicited.py": ("think", "test")}
     for fn, want in frozen_thoughts.items():
         w = check(open(os.path.join(here, "packs/ok", fn)).read(), HOSTS, os.path.join(here, "packs/ok"))
         a_, how, paid = M.DPLUS.step(w["prior"], w, w["N"]); good = (how, a_) == want; ok &= good
