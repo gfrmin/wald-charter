@@ -11,6 +11,7 @@ kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in
 3. kit v0.1: the structural surface (kit_structural.py): seals, inert Display, named refusals, single-use Obs, the loop's order.
 5. kit v0.7: the think act (kit_think.py) under CHARTER v0.1: step's five buckets, C12-C20, E2 on the pinned Worlds, refusals by name.
 6. kit v0.8: SURFACE v0.1 (the corpus grows: depth_plus, think, cost, rate, score), RATE for r < 0, C19 on the reference only.
+7. kit v0.9: the think act on Wordle (kit_wordle_think.py, wordle_meta_oracle.py): two adaptive packs, the oracle's buckets and costs, the E3 curves.
 Exit code 0 = the implementation passes. Nothing else counts.
 """
 import argparse, importlib, os, random, sys
@@ -104,6 +105,8 @@ def main():
     if not kit_wordle_big.main(a.impl, a.seed): ok = False
     import kit_think
     if not kit_think.main(a.impl, a.seed): ok = False
+    import kit_wordle_think
+    if not kit_wordle_think.main(a.impl, a.seed): ok = False
     print("IMPLEMENTATION PASSES" if ok else "IMPLEMENTATION FAILS"); return 0 if ok else 1
 
 if __name__ == "__main__": sys.exit(main())
