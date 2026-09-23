@@ -1,6 +1,6 @@
 # CHARTER v0.2 — amendment: what is learned between episodes
 
-Name: **wald**. Status: **draft 4, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
+Name: **wald**. Status: **draft 5, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
 
 Marks **[J20]–[J25]** are author judgements, ruled in §10. Everything unmarked follows from §1 below and from §2 of v0 and v0.1. The reference is `laws/counts_check.py`.
 
@@ -101,12 +101,14 @@ The assumption that a Global is constant over its plate; the plate's boundary, w
 
 | mark | question | ruling | date |
 | --- | --- | --- | --- |
-| J20 | a Global is a dimension no utility reads; the Prior factorises as P(Global) · P(local \| Global); only Globals persist | | |
-| J21 | the episode decomposition — maximise within an episode, never act to learn — taken for tractability, its price printed by E7 | | |
-| J22 | what persists is Counts of whole-episode records (`data`): sufficient, bounded, content-addressed | | |
-| J23 | a Counts-conditioned Prior is scored held out or the pack is refused | | |
-| J24 | the plate is the World's own identity: two Worlds never share Counts | | |
-| J25 | an unidentifiable Global is refused, never learned under a prior chosen to break its symmetry | | |
+| J20 | a Global is a dimension no utility reads; the Prior factorises as P(Global) · P(local \| Global); only Globals persist | accept | 2026-09-22 |
+| J21 | the episode decomposition — maximise within an episode, never act to learn — taken for tractability, its price printed by E7 | accept | 2026-09-22 |
+| J22 | what persists is Counts of whole-episode records (`data`): sufficient, bounded, content-addressed | accept | 2026-09-22 |
+| J23 | a Counts-conditioned Prior is scored held out or the pack is refused | accept | 2026-09-22 |
+| J24 | the plate is the World's own identity: two Worlds never share Counts (sharing is §9) | accept | 2026-09-22 |
+| J25 | an unidentifiable Global is refused, never learned under a prior chosen to break its symmetry | accept | 2026-09-22 |
+
+Ruled by the owner, 2026-09-22.
 
 Attack sessions: none yet on this page.
 
