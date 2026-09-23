@@ -212,7 +212,7 @@ def full_posterior_global(W, recs):
 
 # ---------------------------------------------------------------- implementations (the reference, then poisons)
 class Reference:
-    name = "reference (CHARTER v0.2 draft 9)"
+    name = "reference (CHARTER v0.2 draft 10)"
     def declare(self, W): return refuse(W)
     def persist(self, recs): return Counter(recs)
     def prior(self, W, recs): return episode_world(W, Counter(recs))["prior"]

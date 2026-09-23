@@ -1,4 +1,4 @@
-# Attack prompt — CHARTER v0.2 draft 9
+# Attack prompt — CHARTER v0.2 draft 10
 
 You are given three pages: `CHARTER.md` (signed, tag `charter-v0`), `CHARTER-v0.1.md` (signed, tag `charter-v0.1`) and `CHARTER-v0.2.md` (draft, unsigned), and nothing else about the project. v0.2 lets a World learn across episodes: some dimensions of Ω are Globals, shared across a plate of episodes; an after-act reports on the state once the terminal act has fired; Counts of whole-episode records persist, and the next episode's prior over Globals is the declared prior conditioned on them.
 
