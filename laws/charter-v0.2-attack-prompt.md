@@ -1,4 +1,4 @@
-# Attack prompt — CHARTER v0.2 draft 12
+# Attack prompt — CHARTER v0.2 draft 13
 
 You are given three pages: `CHARTER.md` (signed, tag `charter-v0`), `CHARTER-v0.1.md` (signed, tag `charter-v0.1`) and `CHARTER-v0.2.md` (draft, unsigned), and nothing else about the project. v0.2 lets a World learn across episodes: some dimensions of Ω are Globals, shared across a plate of episodes; an after-act reports on the state once the terminal act has fired; Counts of whole-episode records persist, and the next episode's prior over Globals is the declared prior conditioned on them.
 
@@ -8,7 +8,7 @@ Categories, in order of weight:
 
 1. **Two readings.** A World on which two careful readers of v0.2 would give a different prior for the next episode, or a different act, or a different refusal. Name both readings and the sentence that admits both.
 2. **A false theorem.** A World on which C21–C25 or C27 fails while the kernel follows §4 exactly. (C26 is stated as not a theorem.)
-3. **S15 wrong in either direction.** A World refused UNIDENTIFIED whose Globals some plate could in fact learn; or a World accepted whose Globals no plate can learn.
+3. **S15's disclosure wrong in either direction.** A World where S15 stays silent while the declared prior settles, forever, something an act can feel; or where it lists a class that settles nothing an act can feel.
 4. **An unlawful implementation the page cannot see.** One that breaks S11–S15 (carries a local, keeps a log, reads the after-act when deciding, persists something other than Counts) yet gives the reference's prior and act at every episode of every World. Say which clause it breaks and why no consequence distinguishes it.
 5. **A hole in sufficiency.** A World and a plate where the prior from Counts differs from conditioning episode by episode on the full product Ω — or where Counts are not bounded by the number of distinct records.
 6. **A numeral that escapes S3.** Behaviour that depends on a number in no declared table.

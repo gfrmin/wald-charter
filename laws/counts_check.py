@@ -101,18 +101,24 @@ def learns_nothing(W):
     "every Global value in one class: no plate, from any records this declaration can write, can move the Globals"
     return len(vals(W["globals"])) > 1 and len(classes(W)) == 1
 
+def paid_part(W, l, g):
+    "what a utility reads of a local: its utility under every terminal (S11: no utility reads the Global)"
+    return tuple(W["T"][t][(l, g)] for t in sorted(W["T"]))
+
 def joint_dist(W, g, seq, t):
-    "the joint law of the local with a design's outcomes and after-report, under g"
+    """the joint law of the paid part of the local with a design's outcomes and after-report, under g (session 5, 3.1:
+    a class that disagrees only about a local no utility reads settles nothing an act can feel)"""
     dist, after = {}, W.get("after")
-    for l, pl in W["prior_local"][g].items():
+    for l0, pl in W["prior_local"][g].items():
         if pl == 0: continue
+        l = l0; lk = paid_part(W, l0, g)
         rows = [list(W["O"][k]["K"][(l, g)].items()) for k in seq]
         arow = after["K"][t][(l, g)] if (after and t is not None) else {None: F(1)}
         for combo in itertools.product(*rows):
             p = pl
             for _, q in combo: p *= q
             for oa, qa in arow.items():
-                key = (l, tuple(o for o, _ in combo), oa); dist[key] = dist.get(key, F(0)) + p * qa
+                key = (lk, tuple(o for o, _ in combo), oa); dist[key] = dist.get(key, F(0)) + p * qa
     return frozenset((k, v) for k, v in dist.items() if v)
 
 def unwashable(W):
@@ -133,6 +139,38 @@ def after_taken(W):
     model is wrong (attack session 4, 2.1-2.3): grading is a check on the model, which the model cannot value."""
     return bool(W.get("after"))
 
+def plate_value(W, T, counts=None, one_run=False):
+    """E7's policy value: the expected utility of a plate of T episodes under the declared model, net of every price,
+    the After-act's included; the kernel's policy at the floor (J21), or with one_run the exact one-run maximiser"""
+    counts = Counter() if counts is None else counts
+    if T == 0: return F(0)
+    w = episode_world(W, counts); pg = post_global(W, counts)
+    def go(b, n, used, obs):
+        if one_run:
+            best = None
+            for a in list(w["T"]) + [k for k in w["O"] if not (w["O"][k]["once"] and k in used)] if n > 0 else list(w["T"]):
+                v = act_value(a, b, n, used, obs)
+                if best is None or v > best: best = v
+            return best
+        a = REF.solve(b, w, min(w["d"], n), used)[1]
+        return act_value(a, b, n, used, obs)
+    def act_value(a, b, n, used, obs):
+        if a in w["T"]:
+            v = REF.expect(b, w["T"][a])
+            if W.get("after"):
+                K = strK(W["after"]["K"][a]); v -= W["after"]["price"]
+                for o, po in REF.push(b, K).items():
+                    if po > 0: v += po * plate_value(W, T - 1, counts + Counter([(tuple(obs), a, o)]), one_run)
+            else:
+                v += plate_value(W, T - 1, counts + Counter([(tuple(obs), a, None)]), one_run)
+            return v
+        K = w["O"][a]["K"]; v = -w["O"][a]["price"]
+        for o, po in REF.push(b, K).items():
+            if po > 0:
+                v += po * go(REF.condition(b, K, o), n - 1, used | ({a} if w["O"][a]["once"] else set()), obs + [(a, o)])
+        return v
+    return go(w["prior"], w["N"], frozenset(), [])
+
 def loo_score(W, counts):
     """S14 as of draft 9: the leave-one-out predictive probability of the shipped records - each copy's predictive
     given all the others - a rational, so a table can hold it (session 3, 6.1: a log score is irrational)."""
@@ -145,10 +183,17 @@ def loo_score(W, counts):
     return total
 
 def realisable(W, rec_):
-    "a record this declaration could itself write: at most N draws, each `once` act at most once, an after-report iff declared"
+    """a record an episode of this declaration can produce under v0's loop, whatever its policy (session 5, 1.1: the
+    kernel's policy is not consulted - a refit that raised a price may condition on records it would no longer write):
+    its acts declared, at most N draws, each `once` act at most once, an ending outcome only as the last draw and then
+    as the end, an after-report exactly when an After-act is declared"""
     obs, t, oa = rec_
     acts = [k for k, _ in obs]
-    if len(acts) > W["N"] or any(k not in W["O"] for k in acts) or t not in W["T"]: return False
+    if len(acts) > W["N"] or any(k not in W["O"] for k in acts): return False
+    for i, (k, o) in enumerate(obs):                        # an ending outcome is the last draw, and then the end
+        if o in W["O"][k].get("ends", ()):
+            if i != len(obs) - 1 or t != f"end:{k}={o}": return False
+    if t not in W["T"] and not (obs and t == f"end:{obs[-1][0]}={obs[-1][1]}"): return False
     if any(W["O"][k]["once"] and acts.count(k) > 1 for k in set(acts)): return False
     return (oa is not None) == bool(W.get("after"))
 
@@ -221,7 +266,7 @@ def full_posterior_global(W, recs):
 
 # ---------------------------------------------------------------- implementations (the reference, then poisons)
 class Reference:
-    name = "reference (CHARTER v0.2 draft 12)"
+    name = "reference (CHARTER v0.2 draft 13)"
     def declare(self, W): return refuse(W)
     def disclose(self, W): return unwashable(W)
     def persist(self, recs): return Counter(recs)
@@ -598,7 +643,81 @@ def frozen():
     L.append("  s4-1.3 a stakes Global nothing can inform beside a reliability that can be learned: accepted, and the stakes")
     L.append("         disclosed in both reliability classes - the same verdict as with the stakes alone, which learns nothing")
     SK1 = stakes_world(rel_fixed=True); refuse(SK1); assert learns_nothing(SK1)
+    # ---- attack session 5 on draft 12 (2026-09-23)
+    Wa = reliability_world([F(9, 10), F(3, 5)], [F(1, 5), F(4, 5)], F(-2)); lsa, gsa = vals(Wa["locals"]), vals(Wa["globals"])
+    Wa["O"]["peek"] = {"K": {(l, g): {"drop": F(1, 2), "go": F(1, 2)} for l in lsa for g in gsa}, "price": F(0), "once": True, "ends": {"drop"}}
+    Wa["N"] = 2; Wa["d"] = 2
+    assert not realisable(Wa, ((("peek", "drop"), ("ask", "a1")), "say a1", "a1"))
+    L.append("  s5-1.1a a shipped record with `ask` after an ending `drop`: no episode can write it (an ending outcome is the last")
+    L.append("         draw, and then the end), so PLATE; the kernel's policy is never consulted")
+    Wb = base_rate_world(F(3)); c3 = Counter({((("ask", "a2"),), "say a2", None): 3})
+    Wb["counts"] = c3; Wb["counts_sha"] = counts_sha(c3); Wb["score"] = loo_score(Wb, c3); refuse(Wb)
+    w = episode_world(Wb, c3)
+    assert post_global(Wb, c3)[("g2",)] == F(64, 65) and REF.solve(w["prior"], w, 1) == (F(189, 325), "say a2")
+    L.append("  s5-1.1b a refit that raised `ask` to 3 accepts Counts its kernel would no longer write: P(g2) = 64/65, `say a2`")
+    L.append("         at 189/325 without asking - the records are facts, and could be written under v0's loop")
+    Wc = confounded_world(); refuse(Wc); assert unwashable(Wc) == []
+    c = Counter({((("ask", "a1"),), "say a1", "a1"): 370, ((("ask", "a1"),), "say a1", "a2"): 130,
+                 ((("ask", "a2"),), "say a2", "a2"): 370, ((("ask", "a2"),), "say a2", "a1"): 130})
+    assert post_global(Wc, c)[("r9",)] > F(9999, 10000) and e7(Wc, c) < F(1, 10**5)
+    L.append("  s5-2.1 conceded: a grader declared at 4/5 and truly perfect, `ask` truly at 37/50 - the truth's record law is")
+    L.append("         r9's exactly, so P(r9) -> 1 and E7 -> 0 while the agent loses 3/10 an episode; no record can show it")
+    A = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    one_wrong = Counter([rec("a1", "a2", "say a1")])
+    assert plate_value(A, 2, one_wrong, one_run=True) == F(3, 100) and plate_value(A, 2, one_wrong) == 0
+    L.append("  s5-2.2 appendix A after one wrong grade: the kernel stops asking, but the one-run maximiser of the same model")
+    L.append("         asks while two episodes remain (value 3/100 against 0) - acting to learn looks when the model says it teaches")
+    Wd = colour_world(); refuse(Wd); assert learns_nothing(Wd) and unwashable(Wd) == []
+    L.append("  s5-3.1 a Global that governs only a colour no utility reads: one class, 'nothing can be learned', and no class")
+    L.append("         disclosed as settling something a utility reads")
+    W7 = w7a_world(1); W72 = w7a_world(2)
+    assert plate_value(W7, 2) == F(291, 250) and plate_value(W72, 2) == F(28, 25)
+    L.append("  s5-7.17 v0's C8 over a plate: horizon 1 is worth 291/250 over two episodes, horizon 2 only 28/25 - C8 is a")
+    L.append("         per-episode theorem (with C5); a longer horizon exploits within the episode and never buys the grade")
     return L
+
+def base_rate_world(price):
+    "session 5, W1b: the Global governs the answer's base rate; `ask` reports perfectly at the given price; no After-act"
+    L = [("answer", ["a1", "a2"])]; G = [("g", ["g1", "g2"])]; ls, gs = vals(L), vals(G)
+    pa = {("g1",): F(4, 5), ("g2",): F(1, 5)}
+    T = {"say a1": {(l, g): (F(1) if l == ("a1",) else F(-1)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l == ("a2",) else F(-1)) for l in ls for g in gs}}
+    return {"locals": L, "globals": G, "prior_global": {g: F(1, 2) for g in gs},
+            "prior_local": {g: {("a1",): pa[g], ("a2",): 1 - pa[g]} for g in gs}, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: F(1)} for l in ls for g in gs}, "price": price, "once": True}}, "N": 1, "d": 1}
+
+def confounded_world():
+    "session 5, W2.1: reliability on {9/10, 1}; the grader declared to report the answer with 4/5; penalty -4"
+    L = [("answer", ["a1", "a2"])]; ls = vals(L); gs = [("r9",), ("r1",)]; rho = {("r9",): F(9, 10), ("r1",): F(1)}; oth = {"a1": "a2", "a2": "a1"}
+    T = {"say a1": {(l, g): (F(1) if l == ("a1",) else F(-4)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l == ("a2",) else F(-4)) for l in ls for g in gs}, "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": [("rho", ["r9", "r1"])], "prior_global": {g: F(1, 2) for g in gs},
+            "prior_local": {g: {l: F(1, 2) for l in ls} for g in gs}, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: rho[g], oth[l[0]]: 1 - rho[g]} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(4, 5), oth[l[0]]: F(1, 5)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
+
+def colour_world():
+    "session 5, W3.1: the Global governs a colour that no utility, kernel or act reads"
+    L = [("answer", ["a1", "a2"]), ("colour", ["red", "blue"])]; G = [("g", ["g1", "g2"])]; ls, gs = vals(L), vals(G); oth = {"a1": "a2", "a2": "a1"}
+    red = {("g1",): F(1, 5), ("g2",): F(4, 5)}
+    pl = {g: {l: F(1, 2) * (red[g] if l[1] == "red" else 1 - red[g]) for l in ls} for g in gs}
+    T = {"say a1": {(l, g): (F(1) if l[0] == "a1" else F(-2)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l[0] == "a2" else F(-2)) for l in ls for g in gs}, "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": G, "prior_global": {g: F(1, 2) for g in gs}, "prior_local": pl, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: F(4, 5), oth[l[0]]: F(1, 5)} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
+
+def w7a_world(N):
+    "session 5, W7a: A fresh and free at 4/5 everywhere; B once at 1/10, perfect if good and 3/5 if poor; P(good) = 7/10"
+    L = [("answer", ["a1", "a2"])]; G = [("g", ["good", "poor"])]; ls, gs = vals(L), vals(G); oth = {"a1": "a2", "a2": "a1"}
+    rb = {("good",): F(1), ("poor",): F(3, 5)}
+    T = {"say a1": {(l, g): (F(1) if l == ("a1",) else F(-2)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l == ("a2",) else F(-2)) for l in ls for g in gs}, "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": G, "prior_global": {("good",): F(7, 10), ("poor",): F(3, 10)},
+            "prior_local": {g: {l: F(1, 2) for l in ls} for g in gs}, "T": T,
+            "O": {"A": {"K": {(l, g): {l[0]: F(4, 5), oth[l[0]]: F(1, 5)} for l in ls for g in gs}, "price": F(0), "once": False},
+                  "B": {"K": {(l, g): {l[0]: rb[g], oth[l[0]]: 1 - rb[g]} for l in ls for g in gs}, "price": F(1, 10), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": N, "d": N}
 
 def stakes_world(rel_fixed=False):
     "session 4, 1.3: the penalty is a local that copies a stakes Global; the reliability is a second Global, or fixed"
