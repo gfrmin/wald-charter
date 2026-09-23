@@ -61,11 +61,12 @@ def episode_world(W, counts, prior=None):
 
 def record_dist(W, g, t):
     "the joint law of every observational act's outcome and the after-outcome under terminal t, locals summed out"
-    acts = sorted(W["O"]); dist = {}
+    draws = [k for k in sorted(W["O"]) for _ in range(1 if W["O"][k]["once"] else max(1, W["N"]))]
+    dist = {}
     after = W.get("after")
     for l, pl in W["prior_local"][g].items():
         if pl == 0: continue
-        rows = [list(W["O"][k]["K"][(l, g)].items()) for k in acts]
+        rows = [list(W["O"][k]["K"][(l, g)].items()) for k in draws]
         arow = after["K"][t][(l, g)] if (after and t is not None) else {None: F(1)}
         for combo in itertools.product(*rows):
             p = pl
@@ -75,9 +76,11 @@ def record_dist(W, g, t):
     return {k: v for k, v in dist.items() if v != 0}
 
 def identifiable(W):
-    """S15: no two Global values are indistinguishable under every terminal with every act taken. Taking every act is the
-    most informative design, so a pair it cannot separate no policy can: refusing on this test never refuses a World
-    that could learn."""
+    """S15: no two Global values are indistinguishable under every terminal, with every `once` act taken once, every
+    `fresh` act taken N times, and the after-act taken. That design is at least as informative as any policy's, so a pair
+    it cannot separate no policy can: refusing on this test never refuses a World that could learn (attack session 1
+    on draft 5, F8: taking a `fresh` act only once refused a World a plate learns). It is necessary, not sufficient:
+    whether the agent's own policy learns is E7's measurement (F9, appendix B)."""
     gs = vals(W["globals"])
     ts = list(W["T"]) if W.get("after") else [None]
     dists = {t: {g: record_dist(W, g, t) for g in gs} for t in ts}
@@ -127,7 +130,7 @@ def full_posterior_global(W, recs):
 
 # ---------------------------------------------------------------- implementations (the reference, then poisons)
 class Reference:
-    name = "reference (CHARTER v0.2 draft 5)"
+    name = "reference (CHARTER v0.2 draft 6)"
     def declare(self, W): return refuse(W)
     def persist(self, recs): return Counter(recs)
     def prior(self, W, recs): return episode_world(W, Counter(recs))["prior"]
@@ -386,7 +389,41 @@ def frozen():
     try: refuse(Wu); assert False
     except Refused as e: assert str(e) == "GLOBAL"
     L.append("  U  a utility that reads the reliability: refused GLOBAL")
+    # ---- attack session 1 on draft 5 (2026-09-22)
+    W0 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)
+    ls, gs = vals(W0["locals"]), vals(W0["globals"]); other = {"a1": "a2", "a2": "a1"}
+    W0["O"]["check"] = {"K": {(l, g): {l[0]: F(4, 5), other[l[0]]: F(1, 5)} for l in ls for g in gs}, "price": F(0), "once": True}
+    W0["N"] = 2; W0["d"] = 2; refuse(W0)
+    r = ((("ask", "a1"), ("check", "a1")), "say a1", None)
+    assert post_global(W0, Counter([r])) == full_posterior_global(W0, [r]) == {("9/10",): F(37, 65), ("3/5",): F(28, 65)}
+    L.append("  s1-F1 no after-act, two instruments: the record still enters; Counts give (37/65, 28/65), as full conditioning does")
+    Wf = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); Wf["O"]["ask"]["once"] = False; Wf["N"] = 2; Wf["d"] = 2
+    ls, gs = vals(Wf["locals"]), vals(Wf["globals"])
+    Wf["after"] = {"K": {t: {(l, g): {"-": F(1)} for l in ls for g in gs} for t in Wf["T"]}, "price": F(0)}
+    refuse(Wf)
+    assert post_global(Wf, Counter([((("ask", "a1"), ("ask", "a1")), "say a1", "-")])) == {("9/10",): F(41, 67), ("3/5",): F(26, 67)}
+    L.append("  s1-F8 a `fresh` act, a blank verdict: accepted (two draws separate the Globals); one agreeing episode -> (41/67, 26/67)")
+    Wo = oscillating_world(); refuse(Wo)
+    ca = Counter({((), "useA", "A1"): 16, ((), "useA", "A0"): 24, ((), "useB", "B1"): 16, ((), "useB", "B0"): 24})
+    cf = Counter({((), "useA", "A1"): 40, ((), "useA", "A0"): 60})
+    assert post_global(Wo, ca) == {("x",): F(1, 2), ("y",): F(1, 2)}
+    assert all(v == F(3, 10) for v in diagnostic(Wo, ca).values()) and F(9, 100) < diagnostic(Wo, cf)[((), "useA")] < F(11, 100)
+    L.append("  s1-F11 an adaptive design on a misdeclared grid need not concentrate: held at (1/2, 1/2); E7 prints 3/10 per design")
+    L.append("         (a fixed design concentrates on the KL-nearest point and E7 prints 1/10: C27 holds for fixed designs only)")
     return L
+
+def oscillating_world():
+    """attack session 1, F11: Global g in {x, y}; the local is two instruments' success bits, independent given g;
+    useA succeeds with 1/2 under x and 9/10 under y, useB the reverse; the after-act reveals the bit of the act fired."""
+    gs = [("x",), ("y",)]; L = [("sA", ["1", "0"]), ("sB", ["1", "0"])]; ls = vals(L)
+    pA = {("x",): F(1, 2), ("y",): F(9, 10)}; pB = {("x",): F(9, 10), ("y",): F(1, 2)}
+    pl = {g: {l: (pA[g] if l[0] == "1" else 1 - pA[g]) * (pB[g] if l[1] == "1" else 1 - pB[g]) for l in ls} for g in gs}
+    return {"locals": L, "globals": [("g", ["x", "y"])], "prior_global": {g: F(1, 2) for g in gs}, "prior_local": pl,
+            "T": {"useA": {(l, g): (F(1) if l[0] == "1" else F(-1)) for l in ls for g in gs},
+                  "useB": {(l, g): (F(1) if l[1] == "1" else F(-1)) for l in ls for g in gs}},
+            "O": {}, "after": {"K": {"useA": {(l, g): {"A" + l[0]: F(1)} for l in ls for g in gs},
+                                     "useB": {(l, g): {"B" + l[1]: F(1)} for l in ls for g in gs}}, "price": F(0)},
+            "N": 0, "d": 1}
 
 def decomposition_price():
     "appendix B: the price of the episode decomposition, by exact dynamic programming over the plate"

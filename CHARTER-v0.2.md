@@ -1,6 +1,6 @@
 # CHARTER v0.2 — amendment: what is learned between episodes
 
-Name: **wald**. Status: **draft 5, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
+Name: **wald**. Status: **draft 6, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
 
 Marks **[J20]–[J25]** are author judgements, ruled in §10. Everything unmarked follows from §1 below and from §2 of v0 and v0.1. The reference is `laws/counts_check.py`.
 
@@ -12,11 +12,13 @@ Where the field has a word, this page uses it: a dimension shared across episode
 
 **Three consumers of this law** have the same hole from the other side: an instrument's reliabilities hand-set while graded outcomes contradict them in a definite direction (on 31 decides where the channel said "gather", the answer was already right 28 times and wrong none); a channel fitted once, offline, never moved; instruments calibrated by a script before play and frozen, so the most consequential number in the World is the one the law never sees. In each, the truth arrives **after** the act, it is about **the instrument** and not this question, and an episode of v0.1 has nowhere to put it.
 
-**What did not force this.** Correlated instruments are already sayable: Ω as a product with a difficulty dimension, kernels that read the whole state, utilities that ignore it. Nor does **drift** need a page: a drift rate is a coordinate of Ω, learned by `condition` like any other (proplang measured this route matching an oracle-tuned forgetting factor, 339.8 bits against 340.9, every forgetting factor strictly worse). What saying it costs is stated in §4.
+**What did not force this.** Correlated instruments are already sayable: Ω as a product with a difficulty dimension, kernels that read the whole state, utilities that ignore it. **Drift is not made sayable here**, and draft 5 was wrong to say it already was: v0.2 has no transition of a Global between episodes, so a drift rate declared in Ω would change nothing across a plate. When drift is forced it will be said as a declared transition between episodes — content, not a forgetting factor; proplang measured that route matching an oracle-tuned forgetter (339.8 bits against 340.9) — and it will cost Counts their sufficiency (§4).
+
+The numbers in this section measure other systems and are cited, not reproduced: the router's model is `src/routing.jl` of credence; the governor's are its `docs/superpowers/specs/2026-08-09-proplang-replan-post-19.md`; the forgetting-factor measurement is proplang's `design.md` §8. The appendices reproduce everything this page itself claims.
 
 ## 1. First principles, and where this page sits
 
-**What a state is and what an act is.** There is one World and one kind of variable in it. A variable the agent is uncertain about and cannot choose is **averaged over**; a variable it chooses is **maximised over**. That is the whole difference, and three consequences follow. *A past act is a fact*: it is data, and any likelihood may read it, which is why an after-act's kernel may read the act that fired and why Counts may record which acts were taken, without acts becoming states. *Another agent's act would be a state*, which is why more than one agent is deferred rather than already sayable. *The agent's own future acts are resolved by maximisation, not belief*, which is why a floor is an approximation with a measured price (E3 of v0).
+**What a state is and what an act is.** There is one World, and its variables differ only in what the agent does with them. A variable the agent is uncertain about and cannot choose is **averaged over**; a variable it chooses is **maximised over**. That is the whole difference, and three consequences follow. *A past act is a fact*: it is data, and any likelihood may read it, which is why an after-act's kernel may read the act that fired and why Counts may record which acts were taken, without acts becoming states. *Another agent's act would be a state*, which is why more than one agent is deferred rather than already sayable. *The agent's own future acts are resolved by maximisation, not belief*, which is why a floor is an approximation with a measured price (E3 of v0).
 
 **The map.** The ambition is one small language in which the whole of Bayesian decision theory is sayable. wald supports a subset, and the subset is named so that what is missing is a list and not a surprise.
 
@@ -25,75 +27,80 @@ Where the field has a word, this page uses it: a dimension shared across episode
 | finite states, strictly positive prior; acts, utilities; observations, priced; conditioning; the Bayes act; sequential decisions and value of information | v0 |
 | the cost of computing the decision | v0.1 (the think act) |
 | parameters shared across episodes, learned from what arrives after the act | **v0.2, this page** |
-| parameters that drift | sayable today as a coordinate of Ω, at the cost of §4's sufficiency |
+| parameters that drift | §9, deferred — needs a declared transition of the Globals between episodes (§0) |
 | acting in order to learn | §9, deferred — its price is measured (§2, E7) |
 | hypotheses generated by a grammar, the prior as description length | §9, deferred |
 | the verbs sayable inside a pack, so a program can reason about its own inference | §9, deferred — this is the gap between a calculator and an agent, and wald is still on the calculator's side of it |
 | utility uncertain, elicited and revised | §9, deferred |
 | continuous states; states not enumerated; more than one agent | §9, deferred |
 
-wald trades the last three rows' reflexivity for **auditability**: because a pack cannot compute, a stranger can judge every pack and every implementation against the kit. Each deferred row is a later amendment, forced by a measurement or not added at all.
+wald trades the reflexivity of the sayable-verbs row for **auditability**: because a pack cannot compute, a stranger can judge every pack and every implementation against the kit. Each deferred row is a later amendment, forced by a measurement or not added at all.
 
 ## 2. The episode is a decomposition, and it is an approximation
 
-The exact object over a plate of T episodes is **one World** with horizon T·N, maximised as a whole. This page adopts instead the **episode decomposition**: maximise within an episode, never across. It is exact when no utility reads a Global (§5, S11) *and* the agent never takes an act for what it would teach — and the second is false in general. On appendix B's World the decomposition costs nothing over two episodes, then 0.0393 at T = 3, 0.3499 at T = 5 and 0.8702 at T = 8. **[J21]** takes it anyway, as E3 took the floor: a World that must be solved over its whole run is not one a consumer can declare a question at a time. E7 prints the price.
+The exact object over a plate of T episodes is **one World** with horizon T·N, maximised as a whole. This page adopts instead the **episode decomposition**: maximise within an episode, never across. It is exact when the agent would never take an act for what it would teach, and that is false in general. On appendix B's World the decomposition costs nothing over two episodes, then 0.0393 at T = 3, 0.3499 at T = 5 and 0.8702 at T = 8 (exactly 8701945558695181/10¹⁶). **[J21]** takes it anyway, as E3 took the floor: a World that must be solved over its whole run is not one a consumer can declare a question at a time. E7 prints the price.
 
 ## 3. Nouns added
 
 | noun | what it is | what dies without it |
 | --- | --- | --- |
-| Global | a declared dimension of Ω that is a property of the World: an instrument's reliability, a model's quality. The declared Prior factorises as P(Global) · P(local \| Global), so a local is drawn afresh each episode from a law the Global governs. No utility reads a Global. **[J20]** | nothing can persist; calibration stays outside the law (§0) |
-| After-act | an act declared `after`, taken once the terminal act has fired and its utility is earned, with kernel V(o \| ω, t) reading the state and the act fired. Priced and kernelled like any observational act. | a reliability becomes unidentifiable whenever reports alone are symmetric in it (appendix A′); credence's router is this case |
-| Counts | the multiset of the plate's **records**: for each episode, which acts were taken, what they reported, which terminal fired, what the after-act reported. Facts, not beliefs. Source `data`. **[J22]** | nothing learned can be held without a growing belief (proplang #25) |
+| Global | a declared dimension of Ω that is a property of the World: an instrument's reliability, a model's quality. The declared Prior factorises as P(Global) · P(local \| Global), so each episode draws its locals afresh from a law the Global governs. No utility reads a Global. In a World that declares a catch-all ⊥ (v0 S5), ⊥ is a local value — "this question's answer is none of the declared ones" — and P(⊥ \| Global) is declared under each Global. **[J20]** | nothing can persist; calibration stays outside the law (§0) |
+| After-act | an act declared `after`, taken once the episode has **ended** — a terminal fired or an ending outcome reached — with kernel K_after(o \| ω, e) reading the state and the end e, declared for every end. Its price lives in the Price table. | a reliability becomes unidentifiable whenever reports alone are symmetric in it (appendix A′); credence's router is this case |
+| Counts | the multiset of the plate's **records**, one for every episode not ended in WORLD_FALSIFIED: the sequence of draws taken — each (act, outcome), a `fresh` act taken twice being two draws — the end reached, and the after-report if one was taken. Facts, not beliefs. Source `data`. Counts belong to the World that wrote them. **[J22] [J24]** | nothing learned can be held without a growing belief (proplang #25) |
 
 ## 4. Verbs — the added semantics
 
 ```
 prior      the prior of an episode is   P(Global | Counts) · P(local | Global)
            where P(Global | Counts) ∝ P(Global) · Π_records L(record | Global)^count
-           and   L(record | Global) = Σ_local P(local | Global) · Π_(act,o) K(o | local, Global) · V(o_after | local, Global, t)
-after      once the door has fired t and the utility is earned: if an After-act is declared and some Global has
-           spread, the episode pays its price, the door reports o, and the episode's record enters Counts
+           and   L(record | Global) = Σ_local P(local | Global) · Π_draws K(o | local, Global)
+                                                               · K_after(o_a | local, Global, e)   if an after-report was taken
+end        every episode not ended in WORLD_FALSIFIED enters its record into Counts
+after      once the episode has ended at e, before its record enters: if an After-act is declared and some Global
+           has spread in the belief at that moment, the episode pays its price and the door reports o_a — S5 of v0
+           applies to it — and o_a joins the record
 ```
 
-No new verb: the prior over Globals is v0 `condition` applied to the declared Prior with the likelihood of Counts. The unit is the **record**, not the (act, outcome) pair, because the reports within one episode share that episode's local state; within a record they are summed together over it.
+No new verb: the prior over Globals is the Bayes' theorem v0 §2's `condition` applies to one token, applied to each record's likelihood. The unit is the **record**, not the draw, because the draws within one episode share that episode's local state; within a record they are summed together over it. A record enters whether or not an after-act was taken: reports alone may inform a Global (appendix F), and C23 holds only if every episode's evidence is kept.
 
-**Why Counts and not a posterior.** Both are exact and they agree (C23). A carried posterior's exact representation grows with every episode; Counts are sufficient for it — under the decomposition the episodes of a plate are independent given the Globals — and bounded by the number of distinct records a World can produce. Learning enters the law as a `data` table that grows, which S3 already governs, and order invariance (C22) is a property of a multiset.
+**Why Counts and not a posterior.** Both are exact and they agree (C23). A carried posterior's exact representation grows with every episode; Counts are sufficient for it — under the decomposition the episodes of a plate are independent given the Globals — and their support is bounded by the number of distinct records a World can produce; only their multiplicities grow with the plate, as log T bits. Learning enters the law as a `data` table that grows, which S3 already governs, and order invariance (C22) is a property of a multiset.
 
 **Conjugacy, and why Globals live on grids.** v0.2 keeps each Global on a finite grid, where the prior from Counts is Bayes' theorem itself and nothing is approximated. A conjugate family (a Beta over a reliability, say) is Bayes only when every record's likelihood already has the family's form in the Global — in practice, when the local is revealed. When a local is summed out the exact posterior is a mixture, and every shortcut to a single member of the family — fractional counts, moment matching, treating a noisy verdict as perfect, classifying each record's local and conditioning as if it were observed — is a second learning mechanism. Appendix D gives the numbers; `counts_check.py` carries the last of these as a poison.
 
-**What saying drift costs.** Counts are sufficient **exactly when the Globals are constant over the plate.** A drift rate declared in Ω makes episodes dependent given it; Counts then stop being sufficient and the kernel must carry a belief, whose growth is the price of the expressiveness. A World that says drift pays it; a World that does not, does not.
+**What drift would cost.** Counts are sufficient when the Globals are constant over the plate. A declared transition of the Globals between episodes (§9) would make episodes dependent given them; Counts would stop being sufficient, and the kernel would have to persist a belief, which S13 forbids until that amendment says otherwise.
 
 ## 5. Structural rules added
 
-- **S11 A Global is unpaid.** No utility and no ending utility reads a Global; refused by the name GLOBAL. Locals never persist: the answer to this question is never the prior for the next.
-- **S12 The after-act is after.** Taken only once the terminal act has fired and its utility is earned; it changes no earned utility; `decide` never reads its kernel. Struck when no Global has spread, or when the episode ended in a refusal. Refused by the name AFTER.
-- **S13 Counts are data, content-addressed.** Written only by the kernel from what the door reported; the pack declares their sha-256, and Counts that do not hash to it are refused by the name PLATE — a live log cannot change under a fixed seed. Nothing else persists between episodes: no log, no cache with a meaning.
-- **S14 A learned Prior is scored.** A Prior over Globals conditioned on Counts is scored held out, as a fitted table is (S10 of v0.1), or refused by the name UNSCORED. **[J23]**
-- **S15 A Global must be learnable.** If two values of the Globals give every record the same probability — with every observational act taken, under every terminal — no plate can ever tell them apart. Such a pack is refused by the name UNIDENTIFIED. Taking every act is the most informative design, so this never refuses a World that could learn. **[J25]**
+- **S11 A Global is unpaid.** No utility and no ending utility reads a Global dimension; refused by the name GLOBAL. No local is carried: each episode redraws its locals from P(local \| Global), which depends on what was learned — so a local that is a function of a Global, the answer to a question whose answer never changes, is learned lawfully.
+- **S12 The after-act is after.** Taken only once the episode has ended; it changes no earned utility; `decide` never reads its kernel. Struck when, in the belief at the end of the episode, no Global has spread — every Global marginal is a point mass — or when the episode ended in WORLD_FALSIFIED. An abstention is an end like any other and is graded. A pack whose after-act kernel omits an end, or reads anything but the state and the end, is refused by the name AFTER.
+- **S13 Counts are data, content-addressed.** Written only by the kernel from what the door reported. A pack that ships Counts declares their sha-256 in the canonical encoding SURFACE gives; the digest is checked once, at declaration, and Counts that do not hash to it are refused by the name PLATE. The digest is a name, not a numeral. Nothing else persists between episodes: no log, no cache with a meaning. That last clause is judged structurally, like S6–S10 of v0.1: a kernel that keeps a log beside its Counts, persists the posterior they determine, or carries the end-of-episode joint belief, gives the reference's prior at every episode (attack session 1, K1–K3), and only the structural kit and the author's reading can see it.
+- **S14 A learned Prior is scored.** A pack that ships Counts ships the held-out score of the Prior they condition, as a fitted table does (S10 of v0.1), or is refused by the name UNSCORED. Counts the kernel writes during a plate are scored by E7, not re-declared. **[J23]**
+- **S15 A Global must be learnable.** If two values of the Globals give every record the same probability — with every `once` act taken once, every `fresh` act taken N times, and the After-act taken, under every end — no plate can ever tell them apart, and the pack is refused by the name UNIDENTIFIED. That design is at least as informative as any policy's, so this never refuses a World that could learn. It is necessary, not sufficient: a World whose policy never takes the informative act is accepted and never learns (appendix B), and E7 is what shows it. **[J25]**
 
 ## 6. Consequences — theorems of §4, tests in `laws/counts_check.py`
 
 - **C21 Inert without a Global.** A World that declares no Global plays exactly as v0.1.
 - **C22 Order invariance.** The prior of episode n+1 depends on the first n only through Counts.
 - **C23 Sufficiency.** That prior's Global marginal equals episode-by-episode v0 conditioning on the full product Ω, locals redrawn each episode.
-- **C24 No leakage.** What is learned reads no utility, price or rate.
-- **C25 Levels, not differences.** `decide` reads utility levels: where "the chance an act is best" and expected utility disagree, the act is expected utility's. (proplang #24 was the other rule, making declared utilities silently inert.)
+- **C24 No leakage.** The prior formed from given Counts reads no utility, price or rate. What Counts come to contain does: the policy chooses which draws are taken and which end is reached, and the policy reads utilities and prices — appendix B's agent never asks B because of them.
+- **C25 Expected utility, not the chance of being best.** Where "the chance an act is best" and expected utility disagree, the act is expected utility's. (proplang #24 was the other rule, making declared utilities silently inert.)
 - **C26 Not a theorem.** Learning does not raise the policy value, and the decomposition does not attain the plate's value.
-- **C27 The railed rung.** A Global on a grid concentrates on the grid point nearest the truth in KL, which may lie on the other side of a decision threshold from the truth; more data makes the agent more certain, not more right. The held-out score (S14) and E7 are what catch it.
-- C13 and C14 of v0.1 (gauge, sure-thing) hold episode by episode with Counts in force.
+- **C27 The railed rung, and the held threshold.** Under a fixed design, a Global on a grid concentrates on the grid point minimising KL(truth ‖ model), which may lie on the other side of a decision threshold from the truth; more data makes the agent more certain, not more right. Under the agent's own adaptive design a misdeclared Global need not concentrate at all: the act that produces data can depend on the belief the data would move, and the posterior can be held at a threshold indefinitely (appendix E). The held-out score (S14) and E7 catch both.
+- C13 and C14 of v0.1 (gauge, sure-thing) hold episode by episode with Counts in force; C14's h(ω) reads no Global.
 
 ## 7. Evaluators added
 
-- **E7 What was learned, and what it cost.** Over a plate the scoreboard prints: the policy value with Counts and with the declared Prior alone; the value of the same World maximised as one run, from the exact solver in `laws/`, where small enough to admit it, and the difference (§2's price); the held-out score of the learned Prior; and, always, for each design (acts taken, terminal fired), the **total variation distance** between the empirical distribution of records in Counts and their posterior predictive. That last line is free. When the World is right it shrinks toward zero; when a label discards negatives or a grid cannot hold the true rate, it does not — on credence's governor it would have printed 0.09 at every plate length, the governor's own |p1 − rate|.
+- **E7 What was learned, and what it cost.** Over a plate the scoreboard prints: the policy value with Counts and with the declared Prior alone; the value of the same World maximised as one run, from the exact solver in `laws/`, where small enough to admit it, and the difference (§2's price), over plate lengths the kit sweeps — a plate's length is the kit's variable, not a number in any pack; the held-out score of the learned Prior; and, always, for each design (acts taken, terminal fired), the **total variation distance** between the empirical distribution of records in Counts and their posterior predictive. That last line costs no observation and no price. When the World is right it shrinks toward zero; when a label discards negatives or a grid cannot hold the true rate, it does not — on credence's governor it would have printed 0.09 at every plate length, the governor's own |p1 − rate|, and on appendix E's adaptive plate it prints 3/10 per design.
 
 ## 8. Residues
 
 The assumption that a Global is constant over its plate; the plate's boundary, which the owner declares and the kernel does not discover; the decomposition of §2, whose price E7 prints; and the definition of each after-act's outcome — what counts as a success is the owner's, and credence's governor shows that one sentence of it can empty a channel.
 
+v0.1's "a `fitted` f is learned across episodes (J7)", and the same of Cost, means refitted between packs, not within a plate: within a plate nothing but Counts persists.
+
 ## 9. Deferred, each its own amendment
 
-**Acting to learn** — the decomposition made optional; needs a tractable form first. **Generated hypotheses** — Ω by a grammar, the prior as description length; proplang's model fragment is the prototype, and the forcing measurement is already visible in two consumers (unlisted children in one, a NONE in another). **Sayable verbs** — reflexive closure, the calculator's last organ; a candidate forcing measurement is v0.1's think act, inert on three Worlds, where proplang's clock-terminated deliberation was not. **Sharing across Worlds** — one instrument's reliability used by every World that calls it. **Utility as a Global** — forbidden today by S11. **Continuous carriers** — a continuous Global may use a conjugate family only under §4's rule, and otherwise must carry the exact mixture or be refused. **Open Ω**, **more than one agent**.
+**Drift** — a declared transition of the Globals between episodes; content, not a forgetting factor. **Acting to learn** — the decomposition made optional; needs a tractable form first. **Generated hypotheses** — Ω by a grammar, the prior as description length; proplang's model fragment is the prototype, and the forcing measurement is already visible in two consumers (unlisted children in one, a NONE in another). **Sayable verbs** — reflexive closure, the calculator's last organ; a candidate forcing measurement is v0.1's think act, inert on three Worlds, where proplang's clock-terminated deliberation was not. **Sharing across Worlds** — one instrument's reliability used by every World that calls it. **Utility as a Global** — forbidden today by S11. **Continuous carriers** — a continuous Global may use a conjugate family only under §4's rule, and otherwise must carry the exact mixture or be refused. **Open Ω**, **more than one agent**.
 
 ## 10. Amendment, and rulings
 
@@ -110,9 +117,13 @@ The assumption that a Global is constant over its plate; the plate's boundary, w
 
 Ruled by the owner, 2026-09-22.
 
-Attack sessions: none yet on this page.
+Attack sessions:
+
+- Session 1, on draft 5 (2026-09-22), incognito, with its own exact solver: every appendix claim reproduced. Categories 1–6: F1 (a record entered Counts only when an after-act was taken — C23 false as written; the checker already had it right), F2 (spread under which belief), F3 (ending outcomes fire no terminal), F4 (is an abstention a refusal), F5 (where ⊥ sits), F6 (a local that copies a Global), F7 (a record as a set or a sequence of draws), F8 (S15 refused a World a plate learns: a `fresh` act drawn twice), F9 (S15 accepts appendix B, which never learns), F10 (C24 read strongly is false), F11 (C27 false under an adaptive design), F12 (a zero-probability after-report), F13 (PLATE's encoding and timing), F14 (the after-act's price and T outside S3), F15 (UNSCORED at episode 2), K1–K3 (unlawful kernels no consequence sees); 27 wording items. C21, C22 and C25 held; C23 held on 300 random Worlds under the corrected reading. Reproduced in `laws/counts_check.py`: F1, F8, F11 as Worlds. Resolved in draft 6: F1, F3, F7, F12 by §4's `end` line and the record's definition; F2, F4 by S12; F5, F6 by the Global row and S11; F8 by S15's design, with the checker corrected; F9 by stating S15 necessary and E7 decisive; F10 by restating C24; F11 by restating C27 and appendix E; F13, F15 by S13 and S14; F14 by the Price table (the after-act) and E7 (T is the kit's sweep, not a pack's number); K1–K3 conceded as structural. All 27 wording items taken; §0's drift claim withdrawn.
 
 ## Appendix A — what one graded episode is worth
+
+Every World in these appendices is `closed`.
 
 Ω = {a1, a2} × {good, poor}: the answer (local) and the instrument's reliability (Global). Declared: the Global uniform; P(answer \| Global) uniform. One `once` act `ask`, free: it reports the answer with probability 9/10 when good and 3/5 when poor, else the other. Terminals in order `say a1`, `say a2`, `abstain`: +1 right, −2 wrong, 0. N = 1, d = 1. One After-act: free, perfect, reveals the answer.
 
@@ -124,15 +135,17 @@ Attack sessions: none yet on this page.
 
 ## Appendix B — what the decomposition costs
 
-Two instruments: `A` of known reliability 4/5, `B` whose reliability is the Global, 99/100 or 1/2, uniform. One ask per episode, both free; `say a1`, `say a2`, `abstain` at +1, −1, 0; a free perfect After-act. Episode by episode the agent always asks A (E[reliability of B] gives 49/100, below A's 3/5) and never learns: 3/5 per episode. Maximised as one run it asks B early and keeps asking B after a right grade. Price of J21: 0 at T = 2; **39319/1000000** at T = 3; **3499390519/10000000000** at T = 5; 0.8702 at T = 8.
+Ω = {a1, a2} × {99/100, 1/2}: the answer (local, uniform, independent of the Global) and B's reliability (Global, uniform). Two `once` acts, both free: `A` reports the answer with 4/5 in every state; `B` with the Global's value. N = 1, d = 1. Terminals `say a1`, `say a2`, `abstain` at +1, −1, 0; a free perfect After-act. Episode by episode the agent always asks A — E[reliability of B] = 149/200, so Q(ask B) = 2 · 149/200 − 1 = 49/100, below Q(ask A) = 3/5 — and never learns: 3/5 per episode. Maximised as one run it asks B early and keeps asking B after a right grade. Price of J21: 0 at T = 2; **39319/1000000** at T = 3; **3499390519/10000000000** at T = 5; **8701945558695181/10¹⁶** at T = 8.
 
 ## Appendix C — credence's two failures, as Worlds
 
-- **The router (R).** A turn is correct (local) with probability θ, the model's quality (Global); the exec signal fires with ρ if correct and σ if not (Globals); θ, ρ, σ ∈ {1/4, 3/4}. With no after-act: **refused UNIDENTIFIED** — (θ, ρ, σ) and (1 − θ, σ, ρ) give every record the same probability, which is the symmetry credence broke with a prior. With an after-act revealing correctness: accepted.
-- **The degenerate label (G1).** Reliability on {1/2, 9/10}, penalty −19; Counts at 99% right. The posterior is certain of 9/10; E7 prints **0.0900** at n = 200 and at n = 2000.
-- **The railed rung (G2).** Reliability on {1/2, 97/100}, true rate 93/100, break-even 19/20. The agent answers — right for 97/100, wrong for 93/100 — and P(97/100) rises from n = 100 to n = 1000.
+- **The router (R).** A turn is correct (local) with probability θ, the model's quality (Global); the exec signal, one `once` free act, fires with ρ if correct and σ if not (Globals); θ, ρ, σ ∈ {1/4, 3/4}, uniform. Terminals `use` (+1 correct, −1 not) and `skip` (0); N = 1, d = 1. With no after-act: **refused UNIDENTIFIED** — (θ, ρ, σ) and (1 − θ, σ, ρ) give every record the same probability, which is the symmetry credence broke with a prior. With an after-act revealing correctness: accepted.
+- **The degenerate label (G1).** Appendix A's World with the reliability on {1/2, 9/10}, uniform, and a wrong answer at −19 (break-even 19/20). Counts: n/200 · 99 each of (report a1, truth a1) and (report a2, truth a2), n/200 each of the two mismatches, all ending in `abstain` — the agent abstains throughout, since E[reliability] ≤ 9/10, and abstentions are graded (S12). The posterior is certain of 9/10; E7 prints **0.0900** at n = 200 and at n = 2000.
+- **The railed rung (G2).** The same World with the reliability on {1/2, 97/100}, uniform. Counts: 93% of n right, 7% wrong, graded abstentions. After a report the agent's P(right) is E[reliability]; it answers once that exceeds 19/20 — right for 97/100, wrong for the true 93/100 — and P(97/100) rises from n = 100 to n = 1000.
 
 ## Appendix D — why a conjugate shortcut needs the local revealed
+
+An illustration outside wald's semantics: the prior here is continuous (§9, continuous carriers).
 
 θ is the probability an instrument reports the truth, with a uniform prior. A verdict reveals the truth with probability 4/5, so each record says only whether verdict and report agreed: P(agree | θ) = 1/5 + 3/5·θ. Seven agree, three disagree.
 
@@ -141,3 +154,15 @@ Two instruments: `A` of known reliability 4/5, `B` whose reliability is the Glob
 - **Fractional counts** (add the E-step's π and 1 − π to a Beta, record by record): ≈ 0.7192 when the agreements come first, ≈ 0.5526 when the disagreements do. The same ten records, two answers: C22 fails, which is how a second learning mechanism shows itself.
 
 With a perfect verdict each record is θ or 1 − θ, the Beta is exact, and the grid and the conjugate family agree.
+
+## Appendix E — the held threshold (attack session 1, F11)
+
+Global g ∈ {x, y}, uniform. The local is a pair of success bits (s_A, s_B), independent given g: s_A is 1 with 1/2 under x and 9/10 under y; s_B the reverse. Terminals `useA`, `useB`: +1 if the used instrument succeeds, −1 if not. No observational acts; N = 0, d = 1. A free After-act reveals the bit of the terminal fired. Truth off the grid: each bit is 1 with 2/5.
+
+- **Fixed design** (always `useA`): 100 records at 2/5 put P(x) at 1 less a sliver; E7 prints 1/10 — C27's fixed-design case.
+- **The agent's design**: it plays `useA` exactly when P(x) ≤ 1/2, so A-data arrive when the belief favours y and push it toward x, and B-data the reverse. Equal Counts of each at 2/5 hold the posterior at **(1/2, 1/2)**; E7 prints **3/10** for each design. Over all paths the chance that the posterior ever reaches 99/100 is about 0.003 at T = 200 (the attacker's exact enumeration).
+
+## Appendix F — reports alone can teach (attack session 1, F1)
+
+Appendix A's World with no After-act and a second free `once` act `check` that reports the answer with 4/5 in every state; N = 2, d = 2. The agreement of `ask` and `check` has probability 37/50 when `ask` is good and 28/50 when poor, so S15 accepts it. One episode in which both report a1 enters its record and moves the Global to **(37/65, 28/65)**, as conditioning the full product Ω does. Had the record entered only with an after-act, the prior would never move, and C23 would fail.
+
