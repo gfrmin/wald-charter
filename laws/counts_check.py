@@ -98,12 +98,59 @@ def classes(W):
     return list(sig.values())
 
 def identifiable(W):
-    """S15 as of draft 7: refuse iff nothing is learnable (every Global value in one class), or the declared prior is
-    not constant on some class - a prior would then decide what no plate can (credence's router). Inseparable values
-    under an equal prior are honest ignorance, and learning the rest may still change the act (session 2, 3.2)."""
-    cls = classes(W)
-    if len(vals(W["globals"])) > 1 and len(cls) == 1: return False
-    return all(len({W["prior_global"][g] for g in c}) == 1 for c in cls)
+    """S15 as of draft 9: refused only if nothing is learnable - every Global value in one class. Invariant under
+    renaming: splitting a value into twins neither creates nor removes a separating design (attack session 3 on
+    draft 8, 3.1 and 3.2: draft 7's prior rule refused a twin-spelt World that learns, and accepted two spellings of
+    one ignorance that decide opposite acts forever)."""
+    return not (len(vals(W["globals"])) > 1 and len(classes(W)) == 1)
+
+def joint_dist(W, g, seq, t):
+    "the joint law of the local with a design's outcomes and after-report, under g"
+    dist, after = {}, W.get("after")
+    for l, pl in W["prior_local"][g].items():
+        if pl == 0: continue
+        rows = [list(W["O"][k]["K"][(l, g)].items()) for k in seq]
+        arow = after["K"][t][(l, g)] if (after and t is not None) else {None: F(1)}
+        for combo in itertools.product(*rows):
+            p = pl
+            for _, q in combo: p *= q
+            for oa, qa in arow.items():
+                key = (l, tuple(o for o, _ in combo), oa); dist[key] = dist.get(key, F(0)) + p * qa
+    return frozenset((k, v) for k, v in dist.items() if v)
+
+def unwashable(W):
+    """The part of the prior no plate will move, disclosed and never refused: each class holding two values that no
+    design separates yet which disagree about the local jointly with the records - so the declared prior within that
+    class settles, forever, something a utility reads. Twins (the same joint law) are a spelling and are not listed."""
+    ts = list(W["T"]) if W.get("after") else [None]; ds = designs(W); out = []
+    for c in classes(W):
+        kinds = {tuple(joint_dist(W, g, d, t) for d in ds for t in ts) for g in c}
+        if len(kinds) > 1: out.append({g: W["prior_global"][g] for g in c})
+    return out
+
+def after_informative(W, pg, obs, t):
+    """S12 as of draft 9: the After-act is taken only if some after-outcome could move the Globals: its likelihood,
+    given the episode's draws and end, differs between two Global values the end-of-episode belief keeps alive.
+    Otherwise it is struck and its price is not paid (session 3, 4.1: the spread test paid for reports that
+    cannot teach, forever, wherever the only spread was inseparable)."""
+    if not W.get("after"): return False
+    live = [g for g in pg if pg[g] * seq_prob(W, g, list(obs), t) > 0]
+    outs = {o for row in W["after"]["K"][t].values() for o in row}
+    for o in outs:
+        ps = [seq_prob(W, g, list(obs) + [(AFTER, o)], t) / seq_prob(W, g, list(obs), t) for g in live]
+        if len(set(ps)) > 1: return True
+    return False
+
+def loo_score(W, counts):
+    """S14 as of draft 9: the leave-one-out predictive probability of the shipped records - each copy's predictive
+    given all the others - a rational, so a table can hold it (session 3, 6.1: a log score is irrational)."""
+    total = F(1)
+    for r, n in counts.items():
+        rest = Counter(counts); rest[r] -= 1
+        if rest[r] == 0: del rest[r]
+        pg = post_global(W, rest)
+        total *= sum(pg[g] * record_lik(W, r, g) for g in pg) ** n
+    return total
 
 def refuse(W):
     "v0.2's refusals, by name"
@@ -117,7 +164,7 @@ def refuse(W):
     if W["globals"] and not identifiable(W): raise Refused("UNIDENTIFIED")   # S15 (draft 7)
     if W.get("counts"):                                                # S13, S14
         if W.get("counts_sha") != counts_sha(W["counts"]): raise Refused("PLATE")
-        if "score" not in W: raise Refused("UNSCORED")
+        if W.get("score") != loo_score(W, W["counts"]): raise Refused("UNSCORED")
     return W
 
 def seq_prob(W, g, draws, t):
@@ -165,7 +212,7 @@ def full_posterior_global(W, recs):
 
 # ---------------------------------------------------------------- implementations (the reference, then poisons)
 class Reference:
-    name = "reference (CHARTER v0.2 draft 8)"
+    name = "reference (CHARTER v0.2 draft 9)"
     def declare(self, W): return refuse(W)
     def persist(self, recs): return Counter(recs)
     def prior(self, W, recs): return episode_world(W, Counter(recs))["prior"]
@@ -254,7 +301,7 @@ class ProbabilityOfBest(Reference):
         score = {t: sum(p for s, p in b.items() if all(w["T"][t][s] >= w["T"][t2][s] for t2 in w["T"])) for t in w["T"]}
         return max(w["T"], key=lambda t: (score[t], -list(w["T"]).index(t)))
 class AcceptsUnidentified(Reference):
-    name = "accepts an unidentifiable Global (credence's router: symmetry broken by a hand-set prior)"
+    name = "accepts a Global nothing can inform (appendix A with no after-act)"
     def declare(self, W):
         if W["globals"] and not identifiable(W): return W
         return refuse(W)
@@ -391,13 +438,13 @@ def frozen():
     try: refuse(reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)); assert False
     except Refused as e: assert str(e) == "UNIDENTIFIED"
     L.append("  A' the same World with no after-act: refused UNIDENTIFIED (P(report) = 1/2 whatever the reliability)")
-    # credence's router: what was wrong was the prior, not the unidentifiability alone
-    try: refuse(router_world(verdict=False, credence_prior=True)); assert False
-    except Refused as e: assert str(e) == "UNIDENTIFIED"
-    refuse(router_world(verdict=False)); refuse(router_world(verdict=True, credence_prior=True))
-    L.append("  R  credence's router (quality x exec reliability x false success, no ground truth) with credence's prior")
-    L.append("     E[rho] = 2/3 > E[sigma] = 1/3: refused UNIDENTIFIED - the prior decides what no plate can. Under an equal")
-    L.append("     prior on each swapped pair: accepted, honest ignorance. With a verdict revealing correctness: accepted")
+    # credence's router: accepted, and the kernel discloses the part of its prior no plate will ever move
+    Rc = router_world(verdict=False, credence_prior=True); refuse(Rc); refuse(router_world(verdict=False))
+    uw = unwashable(Rc)
+    assert len(uw) == 4 and all(len(c) == 2 for c in uw) and any(len(set(c.values())) > 1 for c in uw)
+    assert unwashable(router_world(verdict=True, credence_prior=True)) == []
+    L.append("  R  credence's router with its prior: accepted, and 4 classes disclosed as unwashable - (theta, rho, sigma) against")
+    L.append("     (1 - theta, sigma, rho), where 'is this model good?' rests on the declared prior forever. With a verdict: none.")
     # credence's governor, both halves, as Worlds whose own kernel asks
     Wg = reliability_world([F(1, 2), F(9, 10)], [F(1, 2), F(1, 2)], F(-2))           # break-even 2/3 < E[rel] = 7/10
     gaps = []
@@ -422,7 +469,7 @@ def frozen():
     L.append("     asks and answers, wrong for 93/100, more certain from n = 100 to 1000; E7 prints about 0.04, not shrinking")
     # PLATE: Counts are content-addressed
     Wp = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); Wp["counts"] = Counter([rec("a1", "a1")])
-    Wp["score"] = F(1, 2); Wp["counts_sha"] = counts_sha(Wp["counts"]); refuse(Wp)
+    Wp["counts_sha"] = counts_sha(Wp["counts"]); Wp["score"] = loo_score(Wp, Wp["counts"]); refuse(Wp)
     Wp["counts"] = Counter([rec("a1", "a1"), rec("a1", "a2")])
     try: refuse(Wp); assert False
     except Refused as e: assert str(e) == "PLATE"
@@ -461,7 +508,7 @@ def frozen():
     try: refuse(F1); assert False
     except Refused as e: assert str(e) == "UNIDENTIFIED"
     L.append("  s2-3.1 appendix F with N = 1: refused UNIDENTIFIED - one report is uninformative, and no realisable design takes two")
-    TW = two_world(); refuse(TW)
+    TW = two_world(); refuse(TW); assert len(unwashable(TW)) == 1
     assert classes(TW) and any(len(c) == 2 for c in classes(TW))
     recs = [((("ask", "a1"), ("check", "a1")), "say a1", None)] * 4
     w0 = episode_world(TW, Counter()); b0 = REF.condition(w0["prior"], w0["O"]["ask"]["K"], "a1")
@@ -479,7 +526,44 @@ def frozen():
     assert play(REFI, Wn, [], {"ask": "a1"}) == ("abstain",) and post_global(Wn, cn) == {("1/2",): F(1, 2), ("9/10",): F(1, 2)}
     L.append("  s2-2.2 draft 6's G1 as its kernel plays it: it never asks, every record is equally likely under both rungs, and")
     L.append("         the posterior stays (1/2, 1/2) - two KL minimisers, no concentration")
+    # ---- attack session 3 on draft 8 (2026-09-23)
+    Y = twin_world(F(1, 3), F(1, 6)); refuse(Y); assert unwashable(Y) == []
+    assert post_global(Y, Counter([rec("a1", "a1", "say a1")]))[("x",)] == F(3, 5)
+    L.append("  s3-3.1 appendix A with the poor rung spelt twice at (1/3, 1/6): accepted, nothing disclosed (the twins are a")
+    L.append("         spelling), and one right grade gives P(x) = 3/5 exactly as appendix A does")
+    Wg = reliability_world([F(1, 2), F(9, 10)], [F(1, 2), F(1, 2)], F(-19)); Wg["after"]["price"] = F(1, 100)
+    pg0 = post_global(Wg, Counter())
+    assert not after_informative(Wg, pg0, (), "abstain")
+    W1 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    assert after_informative(W1, post_global(W1, Counter()), (("ask", "a1"),), "say a1")
+    L.append("  s3-4.1 draft 6's G1 with an After-act at 1/100: struck - the after-report is uniform under both rungs given the")
+    L.append("         episode (no report was bought), so it cannot teach; appendix A's is taken")
+    W0 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)
+    ls, gs = vals(W0["locals"]), vals(W0["globals"]); other = {"a1": "a2", "a2": "a1"}
+    W0["N"] = 2; W0["d"] = 2
+    W0["O"]["check"] = {"K": {(l, g): {l[0]: F(7, 10), other[l[0]]: F(3, 10)} for l in ls for g in gs}, "price": F(0), "once": True}
+    six = Counter({((("ask", "a1"), ("check", "a1")), "say a1", None): 6})
+    assert post_global(W0, six)[("9/10",)] == F(1771561, 2303002)
+    L.append("  s3-1.1 Counts written under check = 4/5, shipped into the refit check = 7/10: the refit conditions on the same")
+    L.append("         facts under its own kernel, P(good) = 11^6/(11^6 + 9^6) = 1771561/2303002")
+    A3 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    c3 = Counter({rec("a1", "a1", "say a1"): 2, rec("a1", "a2", "say a1"): 1})
+    assert post_global(A3, c3)[("9/10",)] == F(9, 25) and loo_score(A3, c3) == F(1125, 100672)
+    L.append("  s3-6.1 appendix A shipping {right: 2, wrong: 1}: P(good) = 9/25; the leave-one-out Score is the rational")
+    L.append("         1125/100672, which the kernel recomputes and the pack must match")
     return L
+
+def twin_world(py, pyp):
+    "session 3, 3.1: appendix A with the poor rung written as two names with identical cells"
+    L = [("answer", ["a1", "a2"])]; ls = vals(L); other = {"a1": "a2", "a2": "a1"}
+    rel = {("x",): F(9, 10), ("y",): F(3, 5), ("yp",): F(3, 5)}; gs = list(rel)
+    T = {"say a1": {(l, g): (F(1) if l == ("a1",) else F(-2)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l == ("a2",) else F(-2)) for l in ls for g in gs},
+         "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": [("g", ["x", "y", "yp"])], "prior_global": {("x",): F(1, 2), ("y",): py, ("yp",): pyp},
+            "prior_local": {g: {l: F(1, 2) for l in ls} for g in gs}, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: rel[g], other[l[0]]: 1 - rel[g]} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
 
 def two_world():
     "session 2, 3.2: reliabilities (r1, r2) of two instruments on {3/5, 9/10}^2, uniform; check priced 3/20"
@@ -551,7 +635,7 @@ def run(impl, worlds, seed):
             try: ok = chk(impl, W, recs, random.Random(rng.random()))
             except Exception: ok = False
             fails[cname] += not ok
-    for Wbad, name in ((router_world(False, credence_prior=True), "UNIDENTIFIED"), (paid_global_world(), "GLOBAL")):
+    for Wbad, name in ((reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False), "UNIDENTIFIED"), (paid_global_world(), "GLOBAL")):
         try: impl.declare(Wbad); fails["REFUSE"] += 1
         except Refused as e: fails["REFUSE"] += str(e) != name
     return fails
