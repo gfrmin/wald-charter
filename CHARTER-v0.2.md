@@ -1,6 +1,6 @@
 # CHARTER v0.2 — amendment: what is learned between episodes
 
-Name: **wald**. Status: **draft 7, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
+Name: **wald**. Status: **draft 8, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
 
 Marks **[J20]–[J26]** are author judgements, ruled in §10. Everything unmarked follows from §1 below and from §2 of v0 and v0.1. The reference is `laws/counts_check.py`.
 
@@ -114,10 +114,10 @@ v0.1's "a `fitted` f is learned across episodes (J7)", and the same of Cost, mea
 | J22 | what persists is Counts of whole-episode records (`data`): sufficient, bounded, content-addressed | accept | 2026-09-22 |
 | J23 | a Counts-conditioned Prior is scored held out or the pack is refused | accept | 2026-09-22 |
 | J24 | the plate is the World's own identity: two Worlds never share Counts (sharing is §9) | accept | 2026-09-22 |
-| J25 | draft 7's S15: refuse when nothing is learnable, or when the prior is not constant on a class of inseparable values; an equal prior on such a class is honest ignorance and is accepted | re-rule: draft 6 accepted the stricter form | |
-| J26 | a report that falsifies the World — during the episode or after it — ends the plate; Counts stand as they were before that episode | | |
+| J25 | draft 7's S15: refuse when nothing is learnable, or when the prior is not constant on a class of inseparable values; an equal prior on such a class is honest ignorance and is accepted | accept (re-ruled; draft 6 had accepted the stricter form) | 2026-09-23 |
+| J26 | a report that falsifies the World — during the episode or after it — ends the plate; Counts stand as they were before that episode | accept | 2026-09-23 |
 
-Ruled by the owner, 2026-09-22.
+Ruled by the owner, 2026-09-22; J25 re-ruled and J26 ruled 2026-09-23.
 
 Attack sessions:
 
