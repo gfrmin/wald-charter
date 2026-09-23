@@ -97,12 +97,9 @@ def classes(W):
         sig.setdefault(tuple(design_dist(W, g, d, t) for d in ds for t in ts), []).append(g)
     return list(sig.values())
 
-def identifiable(W):
-    """S15 as of draft 9: refused only if nothing is learnable - every Global value in one class. Invariant under
-    renaming: splitting a value into twins neither creates nor removes a separating design (attack session 3 on
-    draft 8, 3.1 and 3.2: draft 7's prior rule refused a twin-spelt World that learns, and accepted two spellings of
-    one ignorance that decide opposite acts forever)."""
-    return not (len(vals(W["globals"])) > 1 and len(classes(W)) == 1)
+def learns_nothing(W):
+    "every Global value in one class: no plate, from any records this declaration can write, can move the Globals"
+    return len(vals(W["globals"])) > 1 and len(classes(W)) == 1
 
 def joint_dist(W, g, seq, t):
     "the joint law of the local with a design's outcomes and after-report, under g"
@@ -119,7 +116,9 @@ def joint_dist(W, g, seq, t):
     return frozenset((k, v) for k, v in dist.items() if v)
 
 def unwashable(W):
-    """The part of the prior no plate will move, disclosed and never refused: each class holding two values that no
+    """S15 as of draft 11: nothing is refused; the part of the prior no plate will move is disclosed (attack session 4,
+    1.3: every refusal rule proposed so far was beaten by a spelling - of names in session 3, of dimensions in session 4).
+    The part of the prior no plate will move: each class holding two values that no
     design separates yet which disagree about the local jointly with the records - so the declared prior within that
     class settles, forever, something a utility reads. Twins (the same joint law) are a spelling and are not listed."""
     ts = list(W["T"]) if W.get("after") else [None]; ds = designs(W); out = []
@@ -128,18 +127,11 @@ def unwashable(W):
         if len(kinds) > 1: out.append({g: W["prior_global"][g] for g in c})
     return out
 
-def after_informative(W, pg, obs, t):
-    """S12 as of draft 9: the After-act is taken only if some after-outcome could move the Globals: its likelihood,
-    given the episode's draws and end, differs between two Global values the end-of-episode belief keeps alive.
-    Otherwise it is struck and its price is not paid (session 3, 4.1: the spread test paid for reports that
-    cannot teach, forever, wherever the only spread was inseparable)."""
-    if not W.get("after"): return False
-    live = [g for g in pg if pg[g] * seq_prob(W, g, list(obs), t) > 0]
-    outs = {o for row in W["after"]["K"][t].values() for o in row}
-    for o in outs:
-        ps = [seq_prob(W, g, list(obs) + [(AFTER, o)], t) / seq_prob(W, g, list(obs), t) for g in live]
-        if len(set(ps)) > 1: return True
-    return False
+def after_taken(W):
+    """S12 as of draft 11: the After-act is taken at the end of every episode not ended in WORLD_FALSIFIED, whenever it
+    is declared. Draft 9 struck it when the declared model said it could not teach; that blinded E7 exactly where the
+    model is wrong (attack session 4, 2.1-2.3): grading is a check on the model, which the model cannot value."""
+    return bool(W.get("after"))
 
 def loo_score(W, counts):
     """S14 as of draft 9: the leave-one-out predictive probability of the shipped records - each copy's predictive
@@ -152,8 +144,26 @@ def loo_score(W, counts):
         total *= sum(pg[g] * record_lik(W, r, g) for g in pg) ** n
     return total
 
+def realisable(W, rec_):
+    "a record this declaration could itself write: at most N draws, each `once` act at most once, an after-report iff declared"
+    obs, t, oa = rec_
+    acts = [k for k, _ in obs]
+    if len(acts) > W["N"] or any(k not in W["O"] for k in acts) or t not in W["T"]: return False
+    if any(W["O"][k]["once"] and acts.count(k) > 1 for k in set(acts)): return False
+    return (oa is not None) == bool(W.get("after"))
+
+def expressible(W, counts):
+    "session 4, 1.1 and 5.1: every shipped record realisable here, and the whole multiset possible under some Global value"
+    if not all(realisable(W, r) for r in counts): return False
+    return any(W["prior_global"][g] * F(1) * _prod(record_lik(W, r, g) ** n for r, n in counts.items()) > 0 for g in vals(W["globals"]))
+
+def _prod(xs):
+    out = F(1)
+    for x in xs: out *= x
+    return out
+
 def refuse(W):
-    "v0.2's refusals, by name"
+    "v0.2's refusals, by name (draft 11: S15 refuses nothing and discloses; shipped Counts must be expressible)"
     gs, ls = vals(W["globals"]), vals(W["locals"])
     for t, u in W["T"].items():                                        # S11: a Global is unpaid
         for l in ls:
@@ -161,9 +171,8 @@ def refuse(W):
     if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise Refused("PRIOR")
     for g in gs:
         if sum(W["prior_local"][g].values()) != 1: raise Refused("PRIOR")
-    if W["globals"] and not identifiable(W): raise Refused("UNIDENTIFIED")   # S15 (draft 7)
     if W.get("counts"):                                                # S13, S14
-        if W.get("counts_sha") != counts_sha(W["counts"]): raise Refused("PLATE")
+        if W.get("counts_sha") != counts_sha(W["counts"]) or not expressible(W, W["counts"]): raise Refused("PLATE")
         if W.get("score") != loo_score(W, W["counts"]): raise Refused("UNSCORED")
     return W
 
@@ -212,8 +221,9 @@ def full_posterior_global(W, recs):
 
 # ---------------------------------------------------------------- implementations (the reference, then poisons)
 class Reference:
-    name = "reference (CHARTER v0.2 draft 10)"
+    name = "reference (CHARTER v0.2 draft 12)"
     def declare(self, W): return refuse(W)
+    def disclose(self, W): return unwashable(W)
     def persist(self, recs): return Counter(recs)
     def prior(self, W, recs): return episode_world(W, Counter(recs))["prior"]
     def decide(self, b, w, n, used): return REF.solve(b, w, min(w["d"], n), used)[1]
@@ -300,11 +310,10 @@ class ProbabilityOfBest(Reference):
     def decide(self, b, w, n, used):
         score = {t: sum(p for s, p in b.items() if all(w["T"][t][s] >= w["T"][t2][s] for t2 in w["T"])) for t in w["T"]}
         return max(w["T"], key=lambda t: (score[t], -list(w["T"]).index(t)))
-class AcceptsUnidentified(Reference):
-    name = "accepts a Global nothing can inform (appendix A with no after-act)"
-    def declare(self, W):
-        if W["globals"] and not identifiable(W): return W
-        return refuse(W)
+class HidesTheUnwashable(Reference):
+    name = "discloses nothing: the part of the prior no plate will move goes unshown (S15; credence's router)"
+    def disclose(self, W): return []
+
 class AcceptsPaidGlobal(Reference):
     name = "accepts a utility that reads a Global (S11)"
     def declare(self, W):
@@ -344,7 +353,7 @@ class HardAssign(Reference):
         return episode_world(W, Counter(), pg)["prior"]
 
 POISONS = [HardAssign(), CarryAnswer(), SlidingWindow(), Collapse(), KeepsLog(), ScoreTransitionSplit(), ReadsAfter(),
-           ProbabilityOfBest(), AcceptsUnidentified(), AcceptsPaidGlobal()]
+           ProbabilityOfBest(), HidesTheUnwashable(), AcceptsPaidGlobal()]
 
 # ---------------------------------------------------------------- Part 4: Worlds
 def reliability_world(grid, prior_g, u_wrong, verdict=True):
@@ -435,9 +444,10 @@ def frozen():
     assert post_global(W, Counter([rec("a1", "a1"), rec("a1", "a2")])) == {good: F(3, 11), poor: F(8, 11)}
     L.append("  A  one graded episode: reliability (3/5, 2/5); next P(a1|report) 39/50, value 17/50; order-free (3/11, 8/11)")
     # S15 on the same World without a verdict: reports alone are uninformative about a symmetric reliability
-    try: refuse(reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)); assert False
-    except Refused as e: assert str(e) == "UNIDENTIFIED"
-    L.append("  A' the same World with no after-act: refused UNIDENTIFIED (P(report) = 1/2 whatever the reliability)")
+    Ap = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False); refuse(Ap)
+    assert learns_nothing(Ap) and len(unwashable(Ap)) == 1
+    L.append("  A' the same World with no after-act: accepted, and disclosed as learning nothing - P(report) = 1/2 whatever")
+    L.append("     the reliability, so no plate moves it and it rests on its prior forever")
     # credence's router: accepted, and the kernel discloses the part of its prior no plate will ever move
     Rc = router_world(verdict=False, credence_prior=True); refuse(Rc); refuse(router_world(verdict=False))
     uw = unwashable(Rc)
@@ -505,9 +515,9 @@ def frozen():
     F1 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)
     ls, gs = vals(F1["locals"]), vals(F1["globals"]); other = {"a1": "a2", "a2": "a1"}
     F1["O"]["check"] = {"K": {(l, g): {l[0]: F(4, 5), other[l[0]]: F(1, 5)} for l in ls for g in gs}, "price": F(0), "once": True}
-    try: refuse(F1); assert False
-    except Refused as e: assert str(e) == "UNIDENTIFIED"
-    L.append("  s2-3.1 appendix F with N = 1: refused UNIDENTIFIED - one report is uninformative, and no realisable design takes two")
+    refuse(F1); assert learns_nothing(F1)
+    L.append("  s2-3.1 appendix F with N = 1: accepted, disclosed as learning nothing - one report is uninformative, and no")
+    L.append("         realisable design takes two")
     TW = two_world(); refuse(TW); assert len(unwashable(TW)) == 1
     assert classes(TW) and any(len(c) == 2 for c in classes(TW))
     recs = [((("ask", "a1"), ("check", "a1")), "say a1", None)] * 4
@@ -532,12 +542,9 @@ def frozen():
     L.append("  s3-3.1 appendix A with the poor rung spelt twice at (1/3, 1/6): accepted, nothing disclosed (the twins are a")
     L.append("         spelling), and one right grade gives P(x) = 3/5 exactly as appendix A does")
     Wg = reliability_world([F(1, 2), F(9, 10)], [F(1, 2), F(1, 2)], F(-19)); Wg["after"]["price"] = F(1, 100)
-    pg0 = post_global(Wg, Counter())
-    assert not after_informative(Wg, pg0, (), "abstain")
-    W1 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
-    assert after_informative(W1, post_global(W1, Counter()), (("ask", "a1"),), "say a1")
-    L.append("  s3-4.1 draft 6's G1 with an After-act at 1/100: struck - the after-report is uniform under both rungs given the")
-    L.append("         episode (no report was bought), so it cannot teach; appendix A's is taken")
+    assert after_taken(Wg)
+    L.append("  s3-4.1 draft 6's G1 with an After-act at 1/100: taken, and paid, every episode - it cannot teach the Globals,")
+    L.append("         but it checks the model, which the model cannot value; the owner decides by declaring it (draft 11)")
     W0 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)
     ls, gs = vals(W0["locals"]), vals(W0["globals"]); other = {"a1": "a2", "a2": "a1"}
     W0["N"] = 2; W0["d"] = 2
@@ -551,7 +558,61 @@ def frozen():
     assert post_global(A3, c3)[("9/10",)] == F(9, 25) and loo_score(A3, c3) == F(1125, 100672)
     L.append("  s3-6.1 appendix A shipping {right: 2, wrong: 1}: P(good) = 9/25; the leave-one-out Score is the rational")
     L.append("         1125/100672, which the kernel recomputes and the pack must match")
+    # ---- attack session 4 on draft 10 (2026-09-23)
+    W1 = railed_world(); ls1 = vals(W1["locals"]); gs1 = [("x",), ("y",)]
+    pA = {("x",): F(7, 10), ("y",): F(3, 10)}
+    W1["prior_local"] = {g: {l: (pA[g] if l[0] == "1" else 1 - pA[g]) * (F(99, 100) if l[1] == "1" else F(1, 100)) for l in ls1} for g in gs1}
+    w = episode_world(W1, Counter()); assert REF.solve(w["prior"], w, 1)[1] == "useB" and after_taken(W1)
+    assert e7(W1, Counter({((), "useB", "1"): 25, ((), "useB", "0"): 25})) == F(49, 100)
+    L.append("  s4-2.1 appendix G with B declared 99/100 and true 1/2: the policy plays useB forever; graded every episode, E7")
+    L.append("         prints 49/100 (draft 9 struck every B grade, and E7 printed nothing)")
+    Ws = reliability_world([F(1), F(9, 10)], [F(1, 2), F(1, 2)], F(-2))
+    cs = Counter({rec("a1", "a1", "say a1"): 9 + 30, rec("a2", "a2", "say a2"): 30, rec("a1", "a2", "say a1"): 1 + 20, rec("a2", "a1", "say a2"): 20})
+    assert post_global(Ws, cs)[("1",)] == 0 and e7(Ws, cs) > F(1, 5)
+    L.append("  s4-2.1'' a rung at 1 killed by the first wrong grade: grading continues, and E7 prints about 3/10 against the")
+    L.append("         true 3/5 (draft 9 stopped grading at the point mass, and E7 printed 0)")
+    Wf = railed_world(); Wf["prior_local"] = {g: {l: (pA[g] if l[0] == "1" else 1 - pA[g]) * (F(1) if l[1] == "1" else F(0)) for l in ls1} for g in gs1}
+    try: post_global(Wf, Counter({((), "useB", "0"): 1})); assert False
+    except Refused as e: assert str(e) == "FALSIFIED"
+    L.append("  s4-2.2 s_B declared 1 everywhere, true 1/2: the first graded 0 falsifies the World and ends the plate (J26)")
+    F2 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)
+    ls2, gs2 = vals(F2["locals"]), vals(F2["globals"]); oth = {"a1": "a2", "a2": "a1"}
+    F2["O"]["check"] = {"K": {(l, g): {l[0]: F(7, 10), oth[l[0]]: F(3, 10)} for l in ls2 for g in gs2}, "price": F(0), "once": True}
+    F2["N"] = 2; F2["d"] = 2
+    long_ = Counter({((("ask", "a1"), ("check", "a2"), ("check", "a2")), "abstain", None): 1})
+    F2["counts"] = long_; F2["counts_sha"] = counts_sha(long_); F2["score"] = F(1)
+    try: refuse(F2); assert False
+    except Refused as e: assert str(e) == "PLATE"
+    L.append("  s4-1.1a shipped records with three draws, `check` twice, into a declaration with N = 2 and `check` once: PLATE")
+    Fb = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); lsb, gsb = vals(Fb["locals"]), vals(Fb["globals"])
+    Fb["O"]["ask"]["K"] = {(l, g): {l[0]: F(1)} for l in lsb for g in gsb}
+    imp = Counter({rec("a1", "a2", "say a1"): 1})
+    assert not expressible(Fb, imp)
+    L.append("  s4-1.1b a shipped wrong grade into a declaration whose instrument is perfect: impossible under every Global, PLATE")
+    F3 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)
+    F3["O"]["check"] = {"K": {(l, g): {l[0]: F(4, 5), oth[l[0]]: F(1, 5)} for l in ls2 for g in gs2}, "price": F(0), "once": True}
+    assert not realisable(F3, ((("ask", "a1"), ("check", "a1")), "say a1", None))
+    L.append("  s4-3.1 appendix F's two-draw records into its N = 1 refit: not realisable there, so not shippable (PLATE)")
+    SK = stakes_world(); refuse(SK)
+    assert not learns_nothing(SK) and len(unwashable(SK)) == 2
+    L.append("  s4-1.3 a stakes Global nothing can inform beside a reliability that can be learned: accepted, and the stakes")
+    L.append("         disclosed in both reliability classes - the same verdict as with the stakes alone, which learns nothing")
+    SK1 = stakes_world(rel_fixed=True); refuse(SK1); assert learns_nothing(SK1)
     return L
+
+def stakes_world(rel_fixed=False):
+    "session 4, 1.3: the penalty is a local that copies a stakes Global; the reliability is a second Global, or fixed"
+    rels = ["good"] if rel_fixed else ["good", "poor"]; R = {"good": F(9, 10), "poor": F(3, 5)}
+    G = [("rel", rels), ("stakes", ["hi", "lo"])]; L = [("answer", ["a1", "a2"]), ("penalty", ["hi", "lo"])]
+    gs, ls = vals(G), vals(L); oth = {"a1": "a2", "a2": "a1"}
+    pl = {g: {l: (F(1, 2) if l[1] == g[1] else F(0)) for l in ls} for g in gs}
+    pen = {"hi": F(-4), "lo": F(-1)}
+    T = {"say a1": {(l, g): (F(1) if l[0] == "a1" else pen[l[1]]) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l[0] == "a2" else pen[l[1]]) for l in ls for g in gs},
+         "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": G, "prior_global": {g: F(1, len(gs)) for g in gs}, "prior_local": pl, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: R[g[0]], oth[l[0]]: 1 - R[g[0]]} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
 
 def twin_world(py, pyp):
     "session 3, 3.1: appendix A with the poor rung written as two names with identical cells"
@@ -635,9 +696,11 @@ def run(impl, worlds, seed):
             try: ok = chk(impl, W, recs, random.Random(rng.random()))
             except Exception: ok = False
             fails[cname] += not ok
-    for Wbad, name in ((reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False), "UNIDENTIFIED"), (paid_global_world(), "GLOBAL")):
+    for Wbad, name in ((paid_global_world(), "GLOBAL"),):
         try: impl.declare(Wbad); fails["REFUSE"] += 1
         except Refused as e: fails["REFUSE"] += str(e) != name
+    Rc = router_world(verdict=False, credence_prior=True)
+    fails["REFUSE"] += impl.disclose(Rc) != unwashable(Rc)
     return fails
 
 if __name__ == "__main__":
