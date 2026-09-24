@@ -1,6 +1,6 @@
 # CHARTER v0.2 — amendment: what is learned between episodes
 
-Name: **wald**. Status: **draft 15, unsigned.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
+Name: **wald**. Status: **signed.** In force from the author-signed tag `charter-v0.2`, together with `charter-v0` and `charter-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. Nothing earlier is edited (§8 of v0).
 
 Marks **[J20]–[J27]** are author judgements, ruled in §10. Everything unmarked follows from §4 below and from §2 of v0 and v0.1. The reference is `laws/counts_check.py`.
 
