@@ -1,0 +1,245 @@
+"""
+kit_counts.py - kit v0.11: judges an implementation of CHARTER v0.2 (signed, tag charter-v0.2), what is learned between
+episodes. `laws/counts_check.py` is the reference and the definition; INTERFACE.md's kit v0.11 section is the contract.
+  python3 laws/kit_counts.py --impl PATH_TO_src [--seed S]        python3 laws/kit_counts.py --standin
+
+K0  kit integrity: the reference passes its consequences, every poison dies, every pinned World of six attack sessions holds.
+K1  the consequences through the adapter, on random Worlds and the pinned ones: locals never persist (FRESH), order
+    invariance (C22), sufficiency (C23), no leakage (C24), the reference's acts episode by episode (E2), bounded (BOUND).
+K2  refusals by name: GLOBAL, AFTER, PLATE (digest, a record no episode here can write, a multiset impossible under every
+    Global value), UNSCORED (a Score that is not the leave-one-out one).
+K3  S15's disclosure, class for class, on the Worlds the page names: the router, honest ignorance, the stakes, the cap
+    (with the think act), and the three that list nothing (an echoing grader, a per-state bonus, a twin).
+K4  E7's lines, line for line: the degenerate label, the unconverged posterior, a World that is right.
+K5  the Score: the leave-one-out predictive probability, exactly.
+K6  the public plate: `wald.plate(world)`, on the World the adapter builds from the dict, played against a scripted door,
+    carries Counts from episode to episode - appendix
+    A's two episodes, its acts, its Counts - and ends WORLD_FALSIFIED on a report of probability zero, the falsifying
+    record kept beside the Counts (J26).
+"""
+import argparse, importlib, os, random, sys
+from collections import Counter
+from fractions import Fraction as F
+HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
+import counts_check as C
+from spec_check import REF, Refused
+
+# ---------------------------------------------------------------- the adapter, seen as counts_check's implementations
+class Impl(C.Reference):
+    "the builder's adapter behind counts_check's implementation protocol; conversion only"
+    name = "implementation"
+    def __init__(self, adapter): self.a = adapter
+    def prior(self, W, recs): return {C.skey(l, g): p for (l, g), p in self.a.prior(W, list(recs)).items()}
+    def persist(self, recs): return self.a.persist(list(recs))
+    def decide(self, b, w, n, used=frozenset()): return self.a.decide(b, w, n, frozenset(used))
+    def declare(self, W): return self.a.declare(W)
+    def disclose(self, W): return self.a.disclose(W)
+
+def pinned_worlds():
+    "the Worlds of the page's appendices and the six attack sessions, each with a plate of records it can write"
+    A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    out = [(A, [C.rec("a1", "a1", "say a1"), C.rec("a2", "a1", "say a2"), C.rec("a1", "a1", "say a1")]),
+           (C.oscillating_world(), [((), "useA", "A1"), ((), "useB", "B0"), ((), "useA", "A0")]),
+           (C.railed_world(), [((), "useA", "1"), ((), "useA", "0")]),
+           (C.two_world(), [((("ask", "a1"), ("check", "a1")), "say a1", None)] * 3),
+           (C.base_rate_world(F(0)), [((("ask", "a2"),), "say a2", None)] * 3),
+           (C.falsified_refit_world(), [C.rec("a1", "a1", "say a1"), C.rec("a2", "a2", "say a2")]),
+           (C.stakes_world(), [])]
+    lw = C.levels_world(); out.append((lw, []))
+    return out
+
+def refusal_cases():
+    "(name, World) pairs the kernel must refuse, each by that name"
+    cases = [("GLOBAL", C.paid_global_world())]
+    Wa = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    del Wa["after"]["K"]["abstain"]                                              # an after-kernel that omits an end
+    cases.append(("AFTER", Wa))
+    def shipped(W, counts, sha=None, score=None, falsifier=None):
+        W = dict(W); W["counts"] = counts; W["counts_sha"] = sha or C.counts_sha(counts)
+        if falsifier: W["falsifier"] = falsifier
+        W["score"] = score if score is not None else (C.loo_score(W, counts) if C.expressible(W, counts) else F(1))
+        return W
+    A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); one = Counter([C.rec("a1", "a1", "say a1")])
+    cases.append(("PLATE", shipped(A, one, sha="0" * 64)))
+    cases.append(("PLATE", shipped(A, Counter([((("ask", "a1"), ("ask", "a1")), "say a1", "a1")]))))       # two draws, N = 1
+    Fb = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); lsb, gsb = C.vals(Fb["locals"]), C.vals(Fb["globals"])
+    Fb["O"]["ask"]["K"] = {(l, g): {l[0]: F(1)} for l in lsb for g in gsb}
+    cases.append(("PLATE", shipped(Fb, Counter([C.rec("a1", "a2", "say a1")]))))                           # impossible everywhere
+    cases.append(("UNSCORED", shipped(A, one, score=F(1, 2))))
+    return cases
+
+def disclosure_cases():
+    "(label, World) pairs whose disclosure must be the reference's, class for class"
+    return [("the router, credence's prior", C.router_world(False, credence_prior=True)),
+            ("honest ignorance (appendix H)", C.two_world()), ("the stakes (appendix I)", C.stakes_world()),
+            ("the cap, with the think act (appendix K)", C.cap_world(F(9, 10))),
+            ("an echoing grader: nothing", C.echo_world()), ("a per-state bonus: nothing", C.bonus_world()),
+            ("twins: nothing", C.twin_world(F(1, 3), F(1, 6))), ("a colour no act feels: nothing", C.colour_world())]
+
+def e7_cases():
+    Wg = C.reliability_world([F(1, 2), F(9, 10)], [F(1, 2), F(1, 2)], F(-2))
+    g1 = Counter({C.rec("a1", "a1", "say a1"): 99, C.rec("a2", "a2", "say a2"): 99, C.rec("a1", "a2", "say a1"): 1, C.rec("a2", "a1", "say a2"): 1})
+    osc = Counter({((), "useA", "A1"): 16, ((), "useA", "A0"): 24, ((), "useB", "B1"): 16, ((), "useB", "B0"): 24})
+    A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    right = Counter({C.rec("a1", "a1", "say a1"): 90, C.rec("a1", "a2", "say a1"): 10, C.rec("a2", "a2", "say a2"): 90, C.rec("a2", "a1", "say a2"): 10})
+    return [("the degenerate label (appendix C)", Wg, g1), ("the unconverged posterior (appendix E)", C.oscillating_world(), osc),
+            ("a World that is right", A, right)]
+
+def canon(classes): return sorted(sorted((tuple(g), p) for g, p in c.items()) for c in classes)
+
+# ---------------------------------------------------------------- the checks
+def main(impl, seed, adapter=None, wald=None, quiet=False):
+    say = (lambda *a: None) if quiet else print
+    results = []
+    def check(tag, cond, note=""): results.append((tag, bool(cond), note))
+    # K0
+    rng = random.Random(20260923); ws = []
+    for _ in range(30):
+        W = C.rand_world(rng)
+        try: C.refuse(W)
+        except Refused: continue
+        ws.append((W, C.rand_records(W, rng, rng.randint(3, 6))))
+    ref_fails = C.run(C.REFI, ws, 1)
+    if any(ref_fails.values()): say("KIT BROKEN: the v0.2 reference fails its own consequences", ref_fails); return False
+    for p in C.POISONS:
+        if not any(C.run(p, ws, 1).values()): say("KIT BROKEN: a v0.2 poison survives:", p.name); return False
+    C.frozen()
+    say(f"counts kit integrity: reference clean, {len(C.POISONS)} poisons killed, the pinned Worlds of six sessions hold")
+    # the implementation
+    if adapter is None:
+        sys.path.insert(0, os.path.abspath(impl))
+        a = importlib.import_module("wald.kit_adapter").make_agent()
+        missing = [m for m in ("prior", "persist", "declare", "disclose", "e7", "score", "world") if not hasattr(a, m)]
+        if missing: say(f"FAIL counts: the adapter lacks {missing} (INTERFACE.md, kit v0.11)"); return False
+        adapter = a; wald = importlib.import_module("wald")
+    I = Impl(adapter); rng = random.Random(seed)
+    worlds = []
+    for _ in range(40):
+        W = C.rand_world(rng)
+        try: C.refuse(W)
+        except Refused: continue
+        worlds.append((W, C.rand_records(W, rng, rng.randint(3, 7))))
+    worlds += pinned_worlds()
+    # K1
+    for cname, chk in C.CHECKS:
+        bad = [i for i, (W, recs) in enumerate(worlds) if not _safe(chk, I, W, recs, random.Random(seed + i))]
+        check(f"K1 {cname} on {len(worlds)} Worlds ({len(pinned_worlds())} pinned)", not bad, f"fails on World(s) {bad[:5]}")
+    # K2
+    for name, W in refusal_cases():
+        try: adapter.declare(W); check(f"K2 refused {name}", False, "accepted")
+        except Exception as e:
+            got = getattr(e, "name", None) or str(e).split(":")[0]
+            check(f"K2 refused {name}", got == name, f"got {type(e).__name__} {got!r}")
+    try: adapter.declare(C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False)); check("K2 A' is accepted: S15 refuses nothing", True)
+    except Exception as e: check("K2 A' is accepted: S15 refuses nothing", False, f"refused {e}")
+    # K3
+    for label, W in disclosure_cases():
+        got = _safe_call(adapter.disclose, W)
+        check(f"K3 disclosure: {label}", got is not None and canon(got) == canon(C.unwashable(W)), f"got {got}")
+    # K4
+    for label, W, c in e7_cases():
+        got = _safe_call(adapter.e7, W, c); want = C.diagnostic(W, c)
+        check(f"K4 E7 lines: {label}", got == want, f"got {len(got) if got else got} lines")
+    # K5
+    A3 = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    c3 = Counter({C.rec("a1", "a1", "say a1"): 2, C.rec("a1", "a2", "say a1"): 1})
+    check("K5 the Score is the leave-one-out predictive probability: 1125/100672", _safe_call(adapter.score, A3, c3) == F(1125, 100672))
+    # K6
+    if wald is not None: _public_plate(wald, adapter, check)
+    for tag, good, note in results:
+        if not good: say(f"FAIL {tag}   {note}")
+    say(f"counts: {sum(g for _, g, _ in results)}/{len(results)} pass")
+    return all(g for _, g, _ in results)
+
+def _safe(chk, I, W, recs, rng):
+    try: return chk(I, W, recs, rng)
+    except Exception: return False
+
+def _safe_call(f, *a):
+    try: return f(*a)
+    except Exception: return None
+
+class _Door:
+    "a scripted door for the public plate: answers every observational act and the After-act from a list, in order"
+    def __init__(self, wald, outcomes):
+        self.base = wald.Door; self.outs = list(outcomes); self.fired = []
+    def make(self):
+        outs, fired = self.outs, self.fired
+        class D(self.base):
+            def outcome(self, act): return outs.pop(0)
+            def fire(self, act): fired.append(act)
+        return D()
+
+def _public_plate(wald, adapter, check):
+    A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    try:
+        plate = wald.plate(adapter.world(A))
+        d1 = _Door(wald, ["a1", "a1"]); r1 = plate.run(d1.make())
+        d2 = _Door(wald, ["a1", "a1"]); r2 = plate.run(d2.make())
+        check("K6 appendix A, episode 1: ask, say a1; episode 2: ask, say a1", list(r1.acts) == ["ask", "say a1"] and list(r2.acts) == ["ask", "say a1"],
+              f"got {list(r1.acts)}, {list(r2.acts)}")
+        check("K6 the plate's Counts are its two records", dict(plate.counts()) == {C.rec("a1", "a1", "say a1"): 2}, f"got {dict(plate.counts())}")
+        Wf = C.railed_world(); ls1 = C.vals(Wf["locals"]); gs1 = [("x",), ("y",)]
+        pA = {("x",): F(7, 10), ("y",): F(3, 10)}
+        Wf["prior_local"] = {g: {l: (pA[g] if l[0] == "1" else 1 - pA[g]) * (F(1) if l[1] == "1" else F(0)) for l in ls1} for g in gs1}
+        pf = wald.plate(adapter.world(Wf))
+        rf = pf.run(_Door(wald, ["0"]).make())
+        check("K6 a report of probability zero ends the plate WORLD_FALSIFIED, Counts unchanged, the falsifier kept (J26)",
+              "FALSIFIED" in str(rf.status) and dict(pf.counts()) == {} and pf.falsifier() == ((), "useB", "0"), f"got {rf.status}, {dict(pf.counts())}, {pf.falsifier()}")
+    except Exception as e:
+        check("K6 the public plate", False, f"{type(e).__name__}: {e}")
+
+# ---------------------------------------------------------------- the stand-in: the reference as an adapter
+class _StandIn:
+    "counts_check's reference behind the adapter's methods, and a reference plate behind `wald.plate`"
+    def prior(self, W, recs): return {C.unkey(s): p for s, p in C.episode_world(W, Counter(recs))["prior"].items()}
+    def persist(self, recs): return Counter(recs)
+    def decide(self, b, w, n, used=frozenset()): return REF.solve(b, w, min(w["d"], n), used)[1]
+    def declare(self, W): return C.refuse(W)
+    def disclose(self, W): return C.unwashable(W)
+    def e7(self, W, counts): return C.diagnostic(W, counts)
+    def score(self, W, counts): return C.loo_score(W, counts)
+    def world(self, W): return C.refuse(W)
+
+class _RefWald:
+    "the reference plate: v0's loop at the floor, the After-act taken whenever declared, Counts kept, J26"
+    class Door:
+        def outcome(self, act): raise NotImplementedError
+        def fire(self, act): raise NotImplementedError
+    class _Result:
+        def __init__(self, acts, status): self.acts, self.status = acts, status
+    class _Plate:
+        def __init__(self, W): self.W, self.c, self.f = W, Counter(), None
+        def counts(self): return Counter(self.c)
+        def falsifier(self): return self.f
+        def run(self, door):
+            W = self.W; w = C.episode_world(W, self.c); b, n, used, draws, acts = w["prior"], w["N"], frozenset(), [], []
+            while True:
+                a = REF.solve(b, w, min(w["d"], n), used)[1]; acts.append(a)
+                if a in w["T"]: door.fire(a); break
+                o = door.outcome(a)
+                if REF.push(b, w["O"][a]["K"]).get(o, F(0)) == 0:
+                    self.f = (tuple(draws + [(a, o)]), None, None); return _RefWald._Result(acts, "WORLD_FALSIFIED")
+                b = REF.condition(b, w["O"][a]["K"], o); draws.append((a, o)); used |= {a} if w["O"][a]["once"] else set(); n -= 1
+            oa = None
+            if W.get("after"):
+                K = C.strK(W["after"]["K"][a]); oa = door.outcome(W["after"].get("name", "after"))
+                if REF.push(b, K).get(oa, F(0)) == 0:
+                    self.f = (tuple(draws), a, oa); return _RefWald._Result(acts, "WORLD_FALSIFIED")
+            self.c[(tuple(draws), a, oa)] += 1
+            return _RefWald._Result(acts, "TERMINAL")
+    @classmethod
+    def plate(cls, W): return cls._Plate(W)
+
+class _Liar(_StandIn):
+    def disclose(self, W): return []
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(); ap.add_argument("--impl"); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--standin", action="store_true")
+    a = ap.parse_args()
+    if a.standin:
+        good = main(None, 5, adapter=_StandIn(), wald=_RefWald)
+        bad = main(None, 5, adapter=_Liar(), wald=_RefWald, quiet=True)
+        print("stand-in: reference passes:", good, "| a kernel that hides the disclosure fails:", not bad)
+        sys.exit(0 if good and not bad else 1)
+    sys.exit(0 if main(a.impl, a.seed) else 1)

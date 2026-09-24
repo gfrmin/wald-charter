@@ -223,6 +223,10 @@ def refuse(W):
     for t, u in W["T"].items():                                        # S11: a Global is unpaid
         for l in ls:
             if len({u[(l, g)] for g in gs}) > 1: raise Refused("GLOBAL")
+    if W.get("after"):                                                 # S12: one After-act, a kernel for every end
+        ends = set(W["T"])
+        if set(W["after"]["K"]) != ends or any(set(W["after"]["K"][t]) != {(l, g) for l in ls for g in gs} for t in ends):
+            raise Refused("AFTER")
     if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise Refused("PRIOR")
     for g in gs:
         if sum(W["prior_local"][g].values()) != 1: raise Refused("PRIOR")
