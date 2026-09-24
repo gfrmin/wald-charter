@@ -1,6 +1,6 @@
 # SURFACE v0.2 — amendment: declaring what is learned between episodes
 
-Status: **draft 3, unsigned.** In force from the author-signed tag `surface-v0.2`, together with `surface-v0` and `surface-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. This page gives syntax to what CHARTER v0.2 (signed, tag `charter-v0.2`) adds — Globals, P(local | Global), the After-act, shipped Counts with their falsifying records, digest and Score — and nothing else. `laws/surface_check.py` is amended to be its reference checker, `laws/counts_check.py` supplies the charter's refusals, and `laws/packs/{ok,poison}` gain its corpus.
+Status: **draft 4, unsigned.** In force from the author-signed tag `surface-v0.2`, together with `surface-v0` and `surface-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. This page gives syntax to what CHARTER v0.2 (signed, tag `charter-v0.2`) adds — Globals, P(local | Global), the After-act, shipped Counts with their falsifying records, digest and Score — and nothing else. `laws/surface_check.py` is amended to be its reference checker, `laws/counts_check.py` supplies the charter's refusals, and `laws/packs/{ok,poison}` gain its corpus.
 
 Marks **[K19]–[K26]** are author judgements, ruled in §8.
 
@@ -63,14 +63,14 @@ None beyond those of the signed pages: the canonical encoding is defined by its 
 | --- | --- | --- | --- |
 | K19 | `globals([...])` names components of the one space, rather than a second space; at least one component stays local | accept | 2026-09-23 |
 | K20 | with Globals declared, `prior` is P(Global) and `local_prior` is P(local \| Global), two tables with two sources; the states are the joint's support, every other table keeps v0's keys, and every earlier count of states means that support | accept (draft 3 adds the last clause) | 2026-09-23 |
-| K21 | the After-act is a declaration with its own kernel table over exactly the ends, its own `reads`, and its price a cell of `price`; it needs no Global | re-rule: draft 2 had no `reads`, and required Globals | |
+| K21 | the After-act is a declaration with its own kernel table over exactly the ends, its own `reads`, and its price a cell of `price`; it needs no Global | accept (re-ruled; draft 2 had no `reads`, and required Globals) | 2026-09-24 |
 | K22 | Counts are written inline as records with whole-number literal multiplicities, source `data`, each record once | accept (draft 3 says "literal") | 2026-09-23 |
-| K23 | the digest's canonical encoding is defined by its bytes — compact JSON of `[counts, falsifiers]`, every escape pinned, arrays in byte order | re-rule: draft 2 left out the falsifiers and left ASCII escapes open | |
+| K23 | the digest's canonical encoding is defined by its bytes — compact JSON of `[counts, falsifiers]`, every escape pinned, arrays in byte order | accept (re-ruled; draft 2 left out the falsifiers and left ASCII escapes open) | 2026-09-24 |
 | K24 | no Counts from files in v0.2: a pack that learns carries its data | accept | 2026-09-23 |
-| K25 | ⊥ beside Globals is deferred: refused until a syntax joins SURFACE v0's `bottom` to CHARTER v0.2's local ⊥ | | |
-| K26 | a pack is UTF-8 text with no lone surrogate | | |
+| K25 | ⊥ beside Globals is deferred: refused until a syntax joins SURFACE v0's `bottom` to CHARTER v0.2's local ⊥ | accept | 2026-09-24 |
+| K26 | a pack is UTF-8 text with no lone surrogate | accept | 2026-09-24 |
 
-Ruled by the owner, 2026-09-23, on the author's recommendations. K21 and K23 are re-ruled and K25 and K26 are new after attack session 1.
+Ruled by the owner, 2026-09-23, on the author's recommendations. K21 and K23 re-ruled, and K25 and K26 ruled, 2026-09-24, after attack session 1.
 
 Attack sessions:
 
