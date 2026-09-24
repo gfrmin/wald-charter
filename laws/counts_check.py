@@ -29,8 +29,12 @@ def unkey(s):
 def strK(K): return {skey(l, g): row for (l, g), row in K.items()}
 
 def counts_sha(counts):
-    rows = sorted([[[list(x) for x in obs], t, oa, n] for (obs, t, oa), n in counts.items()], key=json.dumps)
-    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
+    """SURFACE v0.2 §3 (K23, amended): the SHA-256, lowercase hex, of the ASCII bytes of the compact JSON array of
+    records [draws, end, after, n] - no whitespace, every non-ASCII character escaped as lowercase \\uXXXX - sorted by
+    each record's own compact JSON text. Every character is ASCII, so the order is byte order in any language."""
+    enc = lambda x: json.dumps(x, separators=(",", ":"), ensure_ascii=True)
+    rows = sorted(([[list(d) for d in obs], t, oa, n] for (obs, t, oa), n in counts.items()), key=enc)
+    return hashlib.sha256(enc(rows).encode("ascii")).hexdigest()
 
 def record_lik(W, rec, g):
     "P(this episode's reports and after-report | Global g): the local state is summed out under P(local | g)"
@@ -110,7 +114,7 @@ def paid_part(W, l, g):
         best = max(W["T"][t][(l, g)] for t in ts)
         for k, sp in W["O"].items():
             for o, ue in sp.get("u_end", {}).items():
-                if sp["K"][(l, g)].get(o, F(0)) > 0: best = max(best, ue)
+                if sp["K"][(l, g)].get(o, F(0)) > 0: best = max(best, ue[(l, g)] if isinstance(ue, dict) else ue)
         part += (best,)
     return part
 
@@ -222,7 +226,12 @@ def refuse(W):
     gs, ls = vals(W["globals"]), vals(W["locals"])
     for t, u in W["T"].items():                                        # S11: a Global is unpaid
         for l in ls:
-            if len({u[(l, g)] for g in gs}) > 1: raise Refused("GLOBAL")
+            if len({u[(l, g)] for g in gs if (l, g) in u}) > 1: raise Refused("GLOBAL")
+    for k, sp in W["O"].items():                                       # S11: nor is an ending utility
+        for o, ue in sp.get("u_end", {}).items():
+            if isinstance(ue, dict):
+                for l in ls:
+                    if len({ue[(l, g)] for g in gs if (l, g) in ue}) > 1: raise Refused("GLOBAL")
     if W.get("after"):                                                 # S12: one After-act, a kernel for every end
         ends = set(W["T"])
         if set(W["after"]["K"]) != ends or any(set(W["after"]["K"][t]) != {(l, g) for l in ls for g in gs} for t in ends):

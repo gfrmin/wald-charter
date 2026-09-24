@@ -1,0 +1,15 @@
+# expect: PLATE
+# Appendix A shipping one right grade: the next episode starts at (3/5, 2/5).
+world("w", closed=True)
+horizon(1, source="elicited")
+depth(1, source="elicited")
+space({'answer': ['a1', 'a2'], 'rel': ['9/10', '3/5']})
+globals(['rel'])
+prior({'9/10': 1/2, '3/5': 1/2}, source="elicited")
+local_prior({'9/10': {'a1': 1/2, 'a2': 1/2}, '3/5': {'a1': 1/2, 'a2': 1/2}}, source="elicited")
+utility({'say a1': {('a1', '9/10'): 1, ('a1', '3/5'): 1, ('a2', '9/10'): -2, ('a2', '3/5'): -2}, 'say a2': {('a1', '9/10'): -2, ('a1', '3/5'): -2, ('a2', '9/10'): 1, ('a2', '3/5'): 1}, 'abstain': {('a1', '9/10'): 0, ('a1', '3/5'): 0, ('a2', '9/10'): 0, ('a2', '3/5'): 0}}, source="elicited")
+price({'ask': 0, 'after': 0}, source="elicited")
+act('ask', once=True, kernel=table({('a1', '9/10'): {'a1': 9/10, 'a2': 1/10}, ('a1', '3/5'): {'a1': 3/5, 'a2': 2/5}, ('a2', '9/10'): {'a2': 9/10, 'a1': 1/10}, ('a2', '3/5'): {'a2': 3/5, 'a1': 2/5}}, source="elicited"), reads=['answer', 'rel'])
+after('after', kernel=table({'say a1': {('a1', '9/10'): {'a1': 1}, ('a1', '3/5'): {'a1': 1}, ('a2', '9/10'): {'a2': 1}, ('a2', '3/5'): {'a2': 1}}, 'say a2': {('a1', '9/10'): {'a1': 1}, ('a1', '3/5'): {'a1': 1}, ('a2', '9/10'): {'a2': 1}, ('a2', '3/5'): {'a2': 1}}, 'abstain': {('a1', '9/10'): {'a1': 1}, ('a1', '3/5'): {'a1': 1}, ('a2', '9/10'): {'a2': 1}, ('a2', '3/5'): {'a2': 1}}}, source="elicited"))
+counts([[[['ask', 'a1']], 'say a1', 'a1', 1]], sha256='8e9ef39c71ffc82fc8a44dc68cfca56114af6038904f712d2e337bbbc69b9892', source="data")
+score(3/8, of="counts", source="data")
