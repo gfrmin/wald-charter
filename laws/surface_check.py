@@ -16,10 +16,10 @@ class Refused(Exception):
     def __init__(self, name, msg=""): super().__init__(f"{name}: {msg}"); self.name = name
 TAGS = {"data", "elicited", "fitted"}
 DECLS = ("world", "horizon", "depth", "space", "param", "prior", "utility", "price", "act", "depth_plus", "think", "cost", "rate", "score",
-         "globals", "local_prior", "after", "counts", "falsifier")                                   # SURFACE v0.2
+         "globals", "local_prior", "after", "counts", "falsifiers")                                  # SURFACE v0.2
 ONCE_ONLY = ("world", "horizon", "depth", "space", "prior", "utility", "price")
 META_ONCE = ("depth_plus", "think", "cost", "rate")     # SURFACE v0.1: optional, each at most once; score at most once per table
-V02_ONCE = ("globals", "local_prior", "after", "counts", "falsifier")   # SURFACE v0.2: optional, each at most once
+V02_ONCE = ("globals", "local_prior", "after", "counts", "falsifiers")  # SURFACE v0.2: optional, each at most once
 
 class Checker:
     def __init__(self, text, hosts=None, data_dir="."):
@@ -258,16 +258,27 @@ class Checker:
             for l, pl in rows[g].items():
                 if pg * pl > 0: self.prior[self.join(l if isinstance(l, tuple) else (l,), g if isinstance(g, tuple) else (g,))] = pg * pl
     def d_after(self, call):
-        a = self.args(call, ("name",), ("kernel",), ("name", "kernel")); nm = self.plain(a["name"]); kn = a["kernel"]
-        if not isinstance(nm, str): raise Refused("NOT_A_DECLARATION", "after(name, kernel=table(...))")
+        a = self.args(call, ("name",), ("kernel", "reads"), ("name", "kernel", "reads")); nm = self.plain(a["name"]); kn = a["kernel"]
+        reads = self.plain(a["reads"])
+        if not isinstance(nm, str): raise Refused("NOT_A_DECLARATION", "after(name, kernel=table(...), reads=[...])")
+        if not (isinstance(reads, list) and all(isinstance(c, str) for c in reads)): raise Refused("NOT_A_DECLARATION", "an After-act's reads is a list of components")
+        for c in reads:
+            if c not in self.space: raise Refused("UNKNOWN_NAME", f"component {c!r}")
         if not (isinstance(kn, ast.Call) and isinstance(kn.func, ast.Name) and kn.func.id == "table"): raise Refused("NOT_A_DECLARATION", "an After-act's kernel is table({end: {state: {outcome: p}}}, source=...)")
         ka = self.args(kn, ("rows",), ("source",), ("rows",)); t = self.tag(ka, kn)
-        self.after = {"name": nm, "K": self.table(ka["rows"], t, 3), "src": t}
-    def record(self, node, lineno):
+        K = self.table(ka["rows"], t, 3)
+        comps = list(self.space); idx = [i for i, c in enumerate(comps) if c in reads]
+        for end, rows in K.items():                       # the reads rule, as for an act (session 1, 4.2)
+            seen = {}
+            for st, row in rows.items():
+                proj = tuple((st if len(comps) == 1 else st[i]) for i in idx)
+                if seen.setdefault(proj, row) != row: raise Refused("UNDECLARED_READ", f"After-act {nm!r} depends on a component missing from reads={reads}")
+        self.after = {"name": nm, "K": K, "src": t}
+    def record(self, node, lineno, falsifier=False):
         r = self.plain(node)
-        if not (isinstance(r, list) and len(r) == 3 and isinstance(r[0], list) and all(isinstance(x, list) and len(x) == 2 and all(isinstance(y, str) for y in x) for x in r[0])
-                and isinstance(r[1], str) and (r[2] is None or isinstance(r[2], str))):
-            raise Refused("NOT_A_DECLARATION", f"line {lineno}: a record is [[[act, outcome], ...], end, after-outcome or None]")
+        ok = (isinstance(r, list) and len(r) == 3 and isinstance(r[0], list) and all(isinstance(x, list) and len(x) == 2 and all(isinstance(y, str) for y in x) for x in r[0])
+              and (isinstance(r[1], str) or (falsifier and r[1] is None)) and (r[2] is None or isinstance(r[2], str)))
+        if not ok: raise Refused("NOT_A_DECLARATION", f"line {lineno}: a record is [[[act, outcome], ...], end, after-outcome or None]")
         return (tuple(tuple(x) for x in r[0]), r[1], r[2])
     def d_counts(self, call):
         a = self.args(call, ("rows",), ("sha256", "source"), ("rows", "sha256")); t = self.tag(a, call)
@@ -286,9 +297,13 @@ class Checker:
         sha = self.plain(a["sha256"])
         if not isinstance(sha, str): raise Refused("NOT_A_DECLARATION", "sha256 is the digest's hex, a name")
         self.counts_ = out; self.counts_sha_ = sha
-    def d_falsifier(self, call):
-        if "counts" not in self.seen: raise Refused("MISSING", "counts: a falsifier travels with the Counts it ended")
-        a = self.args(call, ("record",), (), ("record",)); self.falsifier_ = self.record(a["record"], call.lineno)
+    def d_falsifiers(self, call):
+        if "counts" not in self.seen: raise Refused("MISSING", "counts: falsifying records travel with the Counts they ended")
+        a = self.args(call, ("records",), (), ("records",))
+        if not isinstance(a["records"], ast.List): raise Refused("NOT_A_DECLARATION", "falsifiers([[draws, end, after], ...])")
+        out = [self.record(e, call.lineno, falsifier=True) for e in a["records"].elts]
+        if len(set(out)) != len(out): raise Refused("DUPLICATE", "a falsifying record written twice")
+        self.falsifiers_ = out
     def d_act(self, call):
         self.states()
         a = self.args(call, ("name",), ("kernel", "once", "reads"), ("name", "kernel", "once", "reads")); nm = self.plain(a["name"])
@@ -358,22 +373,26 @@ class Checker:
     # ---- the World spec of INTERFACE.md
     def spec(self):
         if "globals" in self.seen: return self.spec_v02()
-        for g in ("local_prior", "after", "counts", "falsifier"):
-            if g in self.seen: raise Refused("MISSING", f"globals: {g} is for a World that declares Globals")
+        if "local_prior" in self.seen: raise Refused("MISSING", "globals: local_prior is for a World that declares Globals")
+        if any(g in self.seen for g in ("after", "counts", "falsifiers")):          # session 1, 2.1: no Global needed
+            self.globals_, self.locals_ = [], list(self.space)
+            self.prior_g = {(): F(1)}; self.prior_l = {(): dict(self.prior)}
+            return self.spec_v02()
         return self.spec_v01()
     def spec_v02(self):
         "SURFACE v0.2: build the joint World, validate it as v0 does, then project it and apply CHARTER v0.2's refusals"
         import counts_check as CC
-        if "local_prior" not in self.seen: raise Refused("MISSING", "local_prior")
+        if self.globals_ and "local_prior" not in self.seen: raise Refused("MISSING", "local_prior")
         if getattr(self, "after", None):
             if self.after["name"] not in self.prices: raise Refused("MISSING", f"a price for the After-act {self.after['name']!r}")
             aprice = self.prices.pop(self.after["name"])
         s = self.spec_v01()
         if getattr(self, "after", None): self.prices[self.after["name"]] = aprice
+        if self.globals_ and s.get("bottom") is not None: raise Refused("NOT_A_DECLARATION", "a catch-all state beside Globals is not sayable in v0.2 (K25)")
         tup = lambda x: x if isinstance(x, tuple) else (x,)
         W = {"locals": [(c, list(self.space[c])) for c in self.locals_], "globals": [(c, list(self.space[c])) for c in self.globals_],
              "prior_global": {tup(g): p for g, p in self.prior_g.items()},
-             "prior_local": {tup(g): {tup(l): p for l, p in row.items() if p > 0} for g, row in self.prior_l.items()},
+             "prior_local": {tup(g): {tup(l): p for l, p in row.items() if p > 0} for g, row in self.prior_l.items()} if self.globals_ else {(): {tup(st): p for st, p in self.prior.items() if p > 0}},
              "T": {t: {self.split(st): u for st, u in r.items()} for t, r in s["T"].items()},
              "O": {k: {"K": {self.split(st): row for st, row in a["K"].items()}, "price": a["price"], "once": a["once"],
                        **({"ends": set(a["ends"]), "u_end": {o: {self.split(st): u for st, u in us.items()} for o, us in a["ends"].items()}} if a["ends"] else {})}
@@ -391,7 +410,7 @@ class Checker:
         if "counts" in self.seen:
             W["counts"] = self.counts_; W["counts_sha"] = self.counts_sha_
             if hasattr(self, "counts_score"): W["score"] = self.counts_score
-            if hasattr(self, "falsifier_"): W["falsifier"] = self.falsifier_
+            if hasattr(self, "falsifiers_"): W["falsifiers"] = self.falsifiers_
         elif hasattr(self, "counts_score"): raise Refused("MISSING", "counts: a score of counts with no Counts")
         try: return CC.refuse(W)
         except S.Refused as e: raise Refused(getattr(e, "name", None) or str(e).split(":")[0], "CHARTER v0.2: " + str(e))
@@ -458,8 +477,20 @@ def validate(s, omega):
             if src in seen or not s["O"][k]["once"]: raise Refused("SHARED_SOURCE", src)
             seen[src] = k
 
-def check(text, hosts=None, data_dir="."): return Checker(text, hosts, data_dir).spec()
-def census(text, hosts=None, data_dir="."): c = Checker(text, hosts, data_dir); c.spec(); return c.census
+def _plain_text(text):
+    "SURFACE v0.2 (draft 3): a pack is UTF-8 text; a coding declaration naming anything else, or a lone surrogate, is refused"
+    import re
+    for line in text.splitlines()[:2]:
+        m = re.match(r"^[ \t\f]*#.*?coding[:=][ \t]*([-\w.]+)", line)
+        if m and m.group(1).lower().replace("_", "-") not in ("utf-8", "utf8"): raise Refused("NOT_A_DECLARATION", f"a pack is UTF-8, not {m.group(1)}")
+    try: tree = ast.parse(text)
+    except SyntaxError: return
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and any(0xD800 <= ord(ch) <= 0xDFFF for ch in node.value):
+            raise Refused("NOT_A_DECLARATION", f"line {node.lineno}: a name holds a lone surrogate, which no text can")
+
+def check(text, hosts=None, data_dir="."): _plain_text(text); return Checker(text, hosts, data_dir).spec()
+def census(text, hosts=None, data_dir="."): _plain_text(text); c = Checker(text, hosts, data_dir); c.spec(); return c.census
 
 # ---------------------------------------------------------------- Part 3 helper: print a World as a pack
 def q(x): return str(x.numerator) if x.denominator == 1 else f"{x.numerator}/{x.denominator}"
@@ -500,12 +531,12 @@ def to_pack_v02(W):
         L.append(f'act({k!r}, once={a["once"]}, kernel=table({rows}, source="elicited"), reads={lc + gc!r})')
     if W.get("after"):
         rows = "{" + ", ".join(f"{e!r}: " + "{" + ", ".join(f"{st(l, g)!r}: {tbl(r)}" for (l, g), r in K.items()) + "}" for e, K in W["after"]["K"].items()) + "}"
-        L.append(f'after({W["after"].get("name", "after")!r}, kernel=table({rows}, source="elicited"))')
-    if W.get("counts"):
+        L.append(f'after({W["after"].get("name", "after")!r}, kernel=table({rows}, source="elicited"), reads={lc + gc!r})')
+    if W.get("counts") is not None and "counts_sha" in W:
         rows = ", ".join("[" + repr([list(x) for x in obs]) + f", {t!r}, {oa!r}, {n}]" for (obs, t, oa), n in W["counts"].items())
         L.append(f'counts([{rows}], sha256={W["counts_sha"]!r}, source="data")')
-        if "falsifier" in W:
-            obs, t, oa = W["falsifier"]; L.append("falsifier([" + repr([list(x) for x in obs]) + f", {t!r}, {oa!r}])")
+        if W.get("falsifiers"):
+            L.append("falsifiers([" + ", ".join("[" + repr([list(x) for x in obs]) + f", {t!r}, {oa!r}]" for obs, t, oa in W["falsifiers"]) + "])")
         L.append(f'score({q(W["score"])}, of="counts", source="data")')
     return "\n".join(L) + "\n"
 
@@ -515,7 +546,7 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
               "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test"), "prior_of_two_sources.py": (F(0), "hold"), "census_counts_cells.py": (F(-51, 50), "test"), "param_named_after_a_declaration.py": (F(-51, 50), "test"),
-              "appendix_a.py": (F(1, 4), "ask"), "appendix_a_shipped.py": (F(17, 50), "ask"), "falsified_refit.py": (F(87842334540943071199, 112157665459056928801), "ask"), "router_credence_prior.py": (F(1, 6), "exec"), "two_instruments.py": (F(23, 80), "ask")}
+              "appendix_a.py": (F(1, 4), "ask"), "appendix_a_shipped.py": (F(17, 50), "ask"), "falsified_refit.py": (F(1140850621, 3355443250), "ask"), "router_credence_prior.py": (F(1, 6), "exec"), "two_instruments.py": (F(23, 80), "ask"), "after_without_globals.py": (F(1, 4), "ask")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue
@@ -523,7 +554,7 @@ if __name__ == "__main__":
             w = check(open(os.path.join(here, "packs/ok", fn)).read(), HOSTS, os.path.join(here, "packs/ok"))
             if "globals" in w:
                 import counts_check as CC
-                ew = CC.episode_world(w, w.get("counts", Counter())); got = S.REF.solve(ew["prior"], ew, ew["N"])
+                ew = CC.episode_world(w, CC.evidence(w)); got = S.REF.solve(ew["prior"], ew, ew["N"])
             else: got = S.REF.solve(w["prior"], w, w["N"])
             c = census(open(os.path.join(here, "packs/ok", fn)).read(), HOSTS, os.path.join(here, "packs/ok"))
             good = frozen.get(fn) in (None, got); ok &= good

@@ -54,10 +54,10 @@ def refusal_cases():
     Wa = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
     del Wa["after"]["K"]["abstain"]                                              # an after-kernel that omits an end
     cases.append(("AFTER", Wa))
-    def shipped(W, counts, sha=None, score=None, falsifier=None):
-        W = dict(W); W["counts"] = counts; W["counts_sha"] = sha or C.counts_sha(counts)
-        if falsifier: W["falsifier"] = falsifier
-        W["score"] = score if score is not None else (C.loo_score(W, counts) if C.expressible(W, counts) else F(1))
+    def shipped(W, counts, sha=None, score=None, falsifiers=()):
+        W = dict(W); W["counts"] = counts; W["counts_sha"] = sha or C.counts_sha(counts, falsifiers)
+        if falsifiers: W["falsifiers"] = list(falsifiers)
+        W["score"] = score if score is not None else (C.loo_score(W, counts, falsifiers) if C.expressible(W, counts, falsifiers) else F(1))
         return W
     A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); one = Counter([C.rec("a1", "a1", "say a1")])
     cases.append(("PLATE", shipped(A, one, sha="0" * 64)))

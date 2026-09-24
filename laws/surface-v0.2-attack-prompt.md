@@ -1,4 +1,4 @@
-# Attack prompt — SURFACE v0.2 draft 2
+# Attack prompt — SURFACE v0.2 draft 3
 
 You are given six pages and nothing else about the project: `CHARTER.md`, `CHARTER-v0.1.md` and `CHARTER-v0.2.md` (signed semantics), `SURFACE.md` and `SURFACE-v0.1.md` (signed syntax), and `SURFACE-v0.2.md` (draft), with the two lawful packs `appendix_a.py` and `appendix_a_shipped.py` as examples. SURFACE v0.2 gives a syntax to what CHARTER v0.2 adds: Global components, P(local | Global), the After-act, and shipped Counts with their digest, Score and falsifier.
 

@@ -1,4 +1,4 @@
-# expect: FLOAT
+# expect: PLATE
 # CHARTER v0.2 appendix A, shipping one right grade (the next episode starts at (3/5, 2/5)): the answer is local, the instrument's reliability persists. One graded episode is worth 9/100 on the next.
 world("appendix-a", closed=True)
 horizon(1, source="elicited")
@@ -11,5 +11,6 @@ utility({"say a1": by("answer", {"a1": 1, "a2": -2}), "say a2": by("answer", {"a
 price({"ask": 0, "grade": 0}, source="elicited")
 act("ask", once=True, kernel=table({("a1", "9/10"): {"a1": 9/10, "a2": 1/10}, ("a2", "9/10"): {"a2": 9/10, "a1": 1/10}, ("a1", "3/5"): {"a1": 3/5, "a2": 2/5}, ("a2", "3/5"): {"a2": 3/5, "a1": 2/5}}, source="elicited"), reads=["answer", "rel"])
 after("grade", kernel=table({"say a1": {("a1", "9/10"): {"a1": 1}, ("a2", "9/10"): {"a2": 1}, ("a1", "3/5"): {"a1": 1}, ("a2", "3/5"): {"a2": 1}}, "say a2": {("a1", "9/10"): {"a1": 1}, ("a2", "9/10"): {"a2": 1}, ("a1", "3/5"): {"a1": 1}, ("a2", "3/5"): {"a2": 1}}, "abstain": {("a1", "9/10"): {"a1": 1}, ("a2", "9/10"): {"a2": 1}, ("a1", "3/5"): {"a1": 1}, ("a2", "3/5"): {"a2": 1}}}, source="data"), reads=["answer"])
-counts([[[["ask", "a1"]], "say a1", "a1", 1.0]], sha256="c0cd11a6dbce579fb5a0ccc1e157fd2316358b4d31bcb47889e8072c50b53dba", source="data")
+counts([[[["ask", "a1"]], "say a1", "a1", 1]], sha256="c0cd11a6dbce579fb5a0ccc1e157fd2316358b4d31bcb47889e8072c50b53dba", source="data")
+falsifiers([[[["ask", "a2"]], "say a2", "a1"]])
 score(3/8, of="counts", source="data")
