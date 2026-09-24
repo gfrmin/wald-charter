@@ -102,12 +102,22 @@ def learns_nothing(W):
     return len(vals(W["globals"])) > 1 and len(classes(W)) == 1
 
 def paid_part(W, l, g):
-    "what a utility reads of a local: its utility under every terminal (S11: no utility reads the Global)"
-    return tuple(W["T"][t][(l, g)] for t in sorted(W["T"]))
+    """what an act can feel of a state (session 6): the utility differences between terminals - a per-state constant
+    changes no act (v0 C4, 3.3) - and, when the World declares the think act, best(state), which the cap reads (3.1)"""
+    ts = sorted(W["T"]); base = W["T"][ts[0]][(l, g)]
+    part = tuple(W["T"][t][(l, g)] - base for t in ts)
+    if "dplus" in W:
+        best = max(W["T"][t][(l, g)] for t in ts)
+        for k, sp in W["O"].items():
+            for o, ue in sp.get("u_end", {}).items():
+                if sp["K"][(l, g)].get(o, F(0)) > 0: best = max(best, ue)
+        part += (best,)
+    return part
 
 def joint_dist(W, g, seq, t):
-    """the joint law of the paid part of the local with a design's outcomes and after-report, under g (session 5, 3.1:
-    a class that disagrees only about a local no utility reads settles nothing an act can feel)"""
+    """the joint law of what an act can feel of the state with a design's draws, under g. The after-report is left
+    out: no act reads it, and within a class it cannot move the split (session 6, 3.2). Session 5, 3.1: a class that
+    disagrees only about what no act can feel settles nothing and is not listed."""
     dist, after = {}, W.get("after")
     for l0, pl in W["prior_local"][g].items():
         if pl == 0: continue
@@ -117,8 +127,7 @@ def joint_dist(W, g, seq, t):
         for combo in itertools.product(*rows):
             p = pl
             for _, q in combo: p *= q
-            for oa, qa in arow.items():
-                key = (lk, tuple(o for o, _ in combo), oa); dist[key] = dist.get(key, F(0)) + p * qa
+            key = (lk, tuple(o for o, _ in combo)); dist[key] = dist.get(key, F(0)) + p
     return frozenset((k, v) for k, v in dist.items() if v)
 
 def unwashable(W):
@@ -198,7 +207,8 @@ def realisable(W, rec_):
     return (oa is not None) == bool(W.get("after"))
 
 def expressible(W, counts):
-    "session 4, 1.1 and 5.1: every shipped record realisable here, and the whole multiset possible under some Global value"
+    """session 4, 1.1 and 5.1: every shipped record realisable here, and the whole multiset possible under some Global
+    value. Session 6, 5.1: a falsifying record shipped with the Counts is part of the multiset."""
     if not all(realisable(W, r) for r in counts): return False
     return any(W["prior_global"][g] * F(1) * _prod(record_lik(W, r, g) ** n for r, n in counts.items()) > 0 for g in vals(W["globals"]))
 
@@ -217,7 +227,8 @@ def refuse(W):
     for g in gs:
         if sum(W["prior_local"][g].values()) != 1: raise Refused("PRIOR")
     if W.get("counts"):                                                # S13, S14
-        if W.get("counts_sha") != counts_sha(W["counts"]) or not expressible(W, W["counts"]): raise Refused("PLATE")
+        shipped = W["counts"] + Counter([W["falsifier"]]) if W.get("falsifier") else W["counts"]
+        if W.get("counts_sha") != counts_sha(W["counts"]) or not expressible(W, shipped): raise Refused("PLATE")
         if W.get("score") != loo_score(W, W["counts"]): raise Refused("UNSCORED")
     return W
 
@@ -235,7 +246,9 @@ def diagnostic(W, counts):
     """E7, as of draft 7: for every draw in Counts - each report, and the after-report - grouped by the history
     within its episode that led to it, the total variation distance between the empirical distribution of its
     outcome and its posterior predictive given that history. The choice to take a draw depends only on what came
-    before it, so no selection enters (attack session 2, 1.3: a per-design predictive printed 1/2 on a correct World)."""
+    before it, so no selection enters (attack session 2, 1.3: a per-design predictive printed 1/2 on a correct World).
+    The Global is weighted by P(Global | all Counts), which already holds this history; the history conditions the
+    local only (session 6, wording 6: conditioning the Global on it again counts it twice)."""
     pg = post_global(W, counts); groups = {}
     for (obs, t, oa), n in counts.items():
         draws = list(obs) + ([(AFTER, oa)] if oa is not None else [])
@@ -246,9 +259,9 @@ def diagnostic(W, counts):
         tot = sum(c.values())
         table = W["after"]["K"][t] if k == AFTER else W["O"][k]["K"]
         outs = sorted({o for row in table.values() for o in row}, key=str)
-        den = sum(pg[g] * seq_prob(W, g, list(hist), t) for g in pg)
-        tv[(hist, k, t)] = sum(abs(F(c.get(o, 0), tot) - sum(pg[g] * seq_prob(W, g, list(hist) + [(k, o)], t) for g in pg) / den)
-                               for o in outs) / 2
+        live = [g for g in pg if pg[g] > 0 and seq_prob(W, g, list(hist), t) > 0]
+        pred = lambda o: sum(pg[g] * seq_prob(W, g, list(hist) + [(k, o)], t) / seq_prob(W, g, list(hist), t) for g in live) / sum(pg[g] for g in live)
+        tv[(hist, k, t)] = sum(abs(F(c.get(o, 0), tot) - pred(o)) for o in outs) / 2
     return tv
 
 def e7(W, counts): return max(diagnostic(W, counts).values())
@@ -266,7 +279,7 @@ def full_posterior_global(W, recs):
 
 # ---------------------------------------------------------------- implementations (the reference, then poisons)
 class Reference:
-    name = "reference (CHARTER v0.2 draft 13)"
+    name = "reference (CHARTER v0.2 draft 15)"
     def declare(self, W): return refuse(W)
     def disclose(self, W): return unwashable(W)
     def persist(self, recs): return Counter(recs)
@@ -672,9 +685,95 @@ def frozen():
     L.append("         disclosed as settling something a utility reads")
     W7 = w7a_world(1); W72 = w7a_world(2)
     assert plate_value(W7, 2) == F(291, 250) and plate_value(W72, 2) == F(28, 25)
+    # ---- attack session 6 on draft 13 (2026-09-23)
+    import meta_check as M
+    acts = []
+    for pi in (F(9, 10), F(1, 10)):
+        Wt = cap_world(pi); assert len(classes(Wt)) == 1 and len(unwashable(Wt)) == 1
+        w = episode_world(Wt, Counter()); w["O"]["k"]["ends"] = {"e": {s_: F(1, 5) for s_ in w["prior"]}}
+        w.update({k_: Wt[k_] for k_ in ("dplus", "fraction", "rate", "ops")})
+        a_, how, _ = M.DPLUS.step(w["prior"], w, 2); acts.append((how, a_))
+    assert acts == [("think", "scan"), ("refused", "test")]
+    L.append("  s6-3.1 with the think act declared, an inseparable class decides the act through the cap: P(x) = 9/10 buys")
+    L.append("         theta and plays scan, 1/10 refuses it and plays test, forever - now listed, as the cap reads best(state)")
+    assert unwashable(echo_world()) == [] and unwashable(bonus_world()) == []
+    L.append("  s6-3.2, 3.3 an honest against an echoing grader, and a per-state bonus on a colour: nothing listed - no act reads")
+    L.append("         the after-report, and a per-state constant changes no act (v0 C4)")
+    D2 = falsified_refit_world(); good = Counter({rec("a1", "a1", "say a1"): 16, rec("a2", "a2", "say a2"): 4})
+    fals = rec("a2", "a1", "say a2")
+    p_no = post_global(D2, good); p_yes = post_global(D2, good + Counter([fals]))
+    perfect = lambda pg: sum(v for g, v in pg.items() if g[1] == "1")
+    assert perfect(p_no) == F(10**20, 10**20 + 9**20) and perfect(p_yes) == 0
+    for pg, want in ((p_no, "say a2"), (p_yes, "abstain")):
+        w = episode_world(D2, Counter(), pg); b = REF.condition(w["prior"], w["O"]["ask"]["K"], "a2")
+        assert REF.solve(b, w, 0)[1] == want
+    D2["counts"] = good; D2["counts_sha"] = counts_sha(good); D2["falsifier"] = fals
+    D2["score"] = loo_score(D2, good); refuse(D2)
+    L.append("  s6-5.1 a refit shipped a falsified plate's Counts: without the falsifying record P(ask perfect) = 10^20/(10^20 + 9^20)")
+    L.append("         and it says a2; with it, 0 and it abstains - the falsifier now travels with its Counts (J26)")
+    WJ = grader_global_world(); cls = [set(c) for c in unwashable(WJ)]
+    assert {("4/5", "9/10"), ("9/10", "4/5")} in cls
+    L.append("  s6-2.1 the grader declared a Global, the truth (ask 37/50, grader 1) on no grid: S15 still lists the confound")
+    L.append("         {(4/5, 9/10), (9/10, 4/5)} - C27's 'only if the true value is on the grid' was false")
+    A7 = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); A7["O"]["ask"]["price"] = F(7, 10)
+    assert all(plate_value(A7, T) == 0 and plate_value(A7, T, one_run=True) == 0 for T in (1, 2, 3))
+    L.append("  s6-2.2 appendix A with ask at 7/10: the model says ask teaches, yet the lesson is worth nothing under it, so the")
+    L.append("         one-run maximiser abstains too (value 0); a truly perfect ask forgoes 3/10 an episode, unseen")
     L.append("  s5-7.17 v0's C8 over a plate: horizon 1 is worth 291/250 over two episodes, horizon 2 only 28/25 - C8 is a")
     L.append("         per-episode theorem (with C5); a longer horizon exploits within the episode and never buys the grade")
     return L
+
+def cap_world(pi):
+    "session 6, 3.1: `k` emits the ending e with 1/2 under both Globals, but under y only in the z1 states; theta declared"
+    L = [("h", ["sick", "well"]), ("z", ["z1", "z2"])]; ls = vals(L); gs = [("x",), ("y",)]; ph = {"sick": F(1, 5), "well": F(4, 5)}
+    Kt = {"sick": {"+": F(9, 10), "-": F(1, 10)}, "well": {"+": F(1, 5), "-": F(4, 5)}}
+    Ks = {"sick": {"y": F(9, 10), "n": F(1, 10)}, "well": {"y": F(2, 5), "n": F(3, 5)}}
+    Kk = lambda l, g: {"e": F(1, 2), "m": F(1, 2)} if g == ("x",) else ({"e": F(1)} if l[1] == "z1" else {"m": F(1)})
+    T = {"treat": {(l, g): (F(0) if l[0] == "sick" else F(-2)) for l in ls for g in gs},
+         "leave": {(l, g): (F(-10) if l[0] == "sick" else F(0)) for l in ls for g in gs}}
+    return {"locals": L, "globals": [("g", ["x", "y"])], "prior_global": {("x",): pi, ("y",): 1 - pi},
+            "prior_local": {g: {l: ph[l[0]] * F(1, 2) for l in ls} for g in gs}, "T": T,
+            "O": {"test": {"K": {(l, g): Kt[l[0]] for l in ls for g in gs}, "price": F(1, 2), "once": True},
+                  "scan": {"K": {(l, g): Ks[l[0]] for l in ls for g in gs}, "price": F(1, 5), "once": True},
+                  "k": {"K": {(l, g): Kk(l, g) for l in ls for g in gs}, "price": F(10), "once": True, "u_end": {"e": F(1, 5)}}},
+            "N": 2, "d": 1, "dplus": 2, "fraction": F(1, 2), "rate": F(1, 400), "ops": {s_: F(25 * s_) for s_ in range(1, 9)}}
+
+def echo_world():
+    "session 6, 3.2: an honest grader against one that echoes the report's noise; one class, and no act reads the grade"
+    L = [("X", ["a1", "a2"]), ("D", ["a1", "a2"])]; ls = vals(L); gs = [("honest",), ("echo",)]; oth = {"a1": "a2", "a2": "a1"}
+    pl = {g: {l: F(1, 2) * (F(4, 5) if l[1] == l[0] else F(1, 5)) for l in ls} for g in gs}
+    T = {"say a1": {(l, g): (F(1) if l[0] == "a1" else F(-2)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l[0] == "a2" else F(-2)) for l in ls for g in gs}, "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    aft = lambda l, g: {l[0]: F(1)} if g == ("honest",) else {l[1]: F(4, 5), oth[l[1]]: F(1, 5)}
+    return {"locals": L, "globals": [("g", ["honest", "echo"])], "prior_global": {g: F(1, 2) for g in gs}, "prior_local": pl, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[1]: F(1)} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): aft(l, g) for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
+
+def bonus_world():
+    "session 6, 3.3: appendix J's colour World with +1 on every terminal when red - a per-state constant"
+    W = colour_world()
+    W["T"] = {t: {(l, g): u + (F(1) if l[1] == "red" else F(0)) for (l, g), u in r.items()} for t, r in W["T"].items()}
+    return W
+
+def falsified_refit_world():
+    "session 6, 5.1: Globals (base rate, rho); `ask` reports with rho; a free perfect After-act; -19 for a wrong answer"
+    L = [("answer", ["a1", "a2"])]; G = [("base", ["lo", "hi"]), ("rho", ["1", "9/10"])]; ls, gs = vals(L), vals(G); oth = {"a1": "a2", "a2": "a1"}
+    pa = {"lo": F(1, 5), "hi": F(4, 5)}
+    T = {"say a1": {(l, g): (F(1) if l == ("a1",) else F(-19)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l == ("a2",) else F(-19)) for l in ls for g in gs}, "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": G, "prior_global": {g: F(1, 4) for g in gs},
+            "prior_local": {g: {("a1",): pa[g[0]], ("a2",): 1 - pa[g[0]]} for g in gs}, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: F(g[1]), oth[l[0]]: 1 - F(g[1])} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
+
+def grader_global_world():
+    "session 6, 2.1: appendix J's confound with the grader's reliability a Global; ask on {4/5, 9/10, 1}, grader on {4/5, 9/10}"
+    L = [("answer", ["a1", "a2"])]; G = [("ask", ["4/5", "9/10", "1"]), ("grader", ["4/5", "9/10"])]; ls, gs = vals(L), vals(G); oth = {"a1": "a2", "a2": "a1"}
+    T = {"say a1": {(l, g): (F(1) if l == ("a1",) else F(-4)) for l in ls for g in gs},
+         "say a2": {(l, g): (F(1) if l == ("a2",) else F(-4)) for l in ls for g in gs}, "abstain": {(l, g): F(0) for l in ls for g in gs}}
+    return {"locals": L, "globals": G, "prior_global": {g: F(1, 6) for g in gs}, "prior_local": {g: {l: F(1, 2) for l in ls} for g in gs}, "T": T,
+            "O": {"ask": {"K": {(l, g): {l[0]: F(g[0]), oth[l[0]]: 1 - F(g[0])} for l in ls for g in gs}, "price": F(0), "once": True}},
+            "after": {"K": {t: {(l, g): {l[0]: F(g[1]), oth[l[0]]: 1 - F(g[1])} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
 
 def base_rate_world(price):
     "session 5, W1b: the Global governs the answer's base rate; `ask` reports perfectly at the given price; no After-act"
