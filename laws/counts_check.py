@@ -196,12 +196,15 @@ def plate_value(W, T, counts=None, one_run=False):
     return go(w["prior"], w["N"], frozenset(), [])
 
 def loo_score(W, counts, falsifiers=()):
-    """S14 (draft 3 reading): the leave-one-out predictive probability of every shipped fact - each copy of each
-    record and each falsifying record - under the Prior conditioned on all the others; a rational."""
-    allrec = counts + Counter(falsifiers); total = F(1)
-    for r, n in allrec.items():
-        rest = Counter(allrec); rest[r] -= 1
+    """S14, as CHARTER v0.2 signs it: for each copy of each record of the Counts, its likelihood under the Prior
+    conditioned on all the others - the other copies, the other records, and every falsifying record - multiplied
+    together; a rational. The falsifiers are conditioned on and have no term of their own (SURFACE v0.2 session 2, 4.3:
+    draft 3 gave them one, which the signed charter does not)."""
+    total = F(1)
+    for r, n in counts.items():
+        rest = Counter(counts); rest[r] -= 1
         if rest[r] == 0: del rest[r]
+        rest += Counter(falsifiers)
         pg = post_global(W, rest)
         total *= sum(pg[g] * record_lik(W, r, g) for g in pg) ** n
     return total

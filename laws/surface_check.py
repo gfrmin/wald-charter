@@ -115,6 +115,8 @@ class Checker:
         "a table over states: a dict keyed by state, or by(component, {value: ...})"
         if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "by":
             a = self.args(n, ("component", "rows"), (), ("component", "rows")); c = self.plain(a["component"]); rows = self.table(a["rows"], tag, depth); self.by_rows(c, rows, n)
+            if getattr(self, "_paying", False) and c in getattr(self, "globals_", ()):   # CHARTER v0.2 S11 is one of form
+                raise Refused("GLOBAL", f"line {n.lineno}: a utility written over the Global component {c!r}")
             try: return {s: rows[self.comp(s, c)] for s in self.states()}
             except KeyError as e: raise Refused("TABLE_SHAPE", f"line {n.lineno}: no row for {e}")
         return self.table(n, tag, depth)
@@ -155,6 +157,10 @@ class Checker:
             self.prior_g = self.table(a["table"], t, 1)
             want = set(self.gvalues())
             if set(self.prior_g) - want: raise Refused("TABLE_SHAPE", f"the prior names a Global value outside the space: {sorted(set(self.prior_g) - want)}")
+            if not self.locals_:                                 # all Global: the joint is the prior, one local value ()
+                self.prior_l = {g: {(): F(1)} for g in self.prior_g}
+                self.prior = {g: p for g, p in self.prior_g.items() if p > 0}
+                self.seen["local_prior"] = call.lineno
             return
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.prior_src = t
         if not isinstance(a["table"], ast.Dict): raise Refused("NOT_A_DECLARATION", "the prior is a dict keyed by state: it is what says which states exist")
@@ -165,6 +171,10 @@ class Checker:
         if len(set(ks)) != len(ks): raise Refused("DUPLICATE", f"{what}: a key is written twice")
         return ks
     def d_utility(self, call):
+        self._paying = True
+        try: return self._d_utility(call)
+        finally: self._paying = False
+    def _d_utility(self, call):
         self.states()
         a = self.args(call, ("terminal",), ("ending", "source"), ("terminal",)); t = self.tag(a, call); self.util_src = t
         if not isinstance(a["terminal"], ast.Dict): raise Refused("NOT_A_DECLARATION", "utility({act: table over states}, ...)")
@@ -221,6 +231,7 @@ class Checker:
         vs = [self.space[c] for c in self.globals_]
         return [x[0] if len(self.globals_) == 1 else x for x in itertools.product(*vs)]
     def lvalues(self):
+        if not self.locals_: return [()]
         vs = [self.space[c] for c in self.locals_]
         return [x[0] if len(self.locals_) == 1 else x for x in itertools.product(*vs)]
     def split(self, state):
@@ -241,9 +252,10 @@ class Checker:
         for c in names:
             if c not in self.space: raise Refused("UNKNOWN_NAME", f"component {c!r}")
         self.globals_ = [c for c in self.space if c in names]; self.locals_ = [c for c in self.space if c not in names]
-        if not self.locals_: raise Refused("NOT_A_DECLARATION", "a World whose every component persists has no episode: at least one component is local")
+        # K19 as re-ruled (session 2, 2.2): a World may be all Global - a monitor; its one local value is ()
     def d_local_prior(self, call):
         if "globals" not in self.seen: raise Refused("MISSING", "globals: P(local | Global) needs the Globals")
+        if not self.locals_: raise Refused("NOT_A_DECLARATION", "a World whose every component is Global has no local to give a law")
         if "prior" not in self.seen: raise Refused("MISSING", "prior: P(local | Global) comes after P(Global)")
         a = self.args(call, ("table",), ("source",), ("table",)); t = self.tag(a, call); self.local_prior_src = t
         rows = self.table(a["table"], t, 2)
@@ -546,7 +558,7 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
               "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test"), "prior_of_two_sources.py": (F(0), "hold"), "census_counts_cells.py": (F(-51, 50), "test"), "param_named_after_a_declaration.py": (F(-51, 50), "test"),
-              "appendix_a.py": (F(1, 4), "ask"), "appendix_a_shipped.py": (F(17, 50), "ask"), "falsified_refit.py": (F(1140850621, 3355443250), "ask"), "router_credence_prior.py": (F(1, 6), "exec"), "two_instruments.py": (F(23, 80), "ask"), "after_without_globals.py": (F(1, 4), "ask")}
+              "appendix_a.py": (F(1, 4), "ask"), "appendix_a_shipped.py": (F(17, 50), "ask"), "falsified_refit.py": (F(1140850621, 3355443250), "ask"), "router_credence_prior.py": (F(1, 6), "exec"), "two_instruments.py": (F(23, 80), "ask"), "after_without_globals.py": (F(1, 4), "ask"), "monitor_all_global.py": (F(0, 1), "ship")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue
