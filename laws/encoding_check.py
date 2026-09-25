@@ -8,14 +8,26 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collections import Counter
 import counts_check as C
 
-SHORT = {'"': '\\"', "\\": "\\\\", "\b": "\\b", "\f": "\\f", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
+def escape_table(page):
+    """V2.13's escapes, read from the page itself: rows `| U+XXXX | U+YYYY | written as |`, the first row whose range holds
+    the character deciding. The encoder below is built from these rows and nothing else, so a sentence of the page cannot
+    say one thing while this checks another (attack session 4 on SURFACE v0.2, 4.1)."""
+    txt = open(page, encoding="utf-8").read(); rows = []
+    for lo, hi, how in re.findall(r"^\| U\+([0-9A-F]{4,6}) \| U\+([0-9A-F]{4,6}) \| (.+?) \|$", txt, re.M):
+        rows.append((int(lo, 16), int(hi, 16), how.strip().strip("`")))
+    return rows
+
+ROWS = []
 def esc(ch):
     o = ord(ch)
-    if ch in SHORT: return SHORT[ch]
-    if o < 0x20 or o == 0x7F: return "\\u%04x" % o             # every character outside U+0020-U+007E is escaped
-    if o < 0x80: return ch                                    # '/' as itself
-    if o <= 0xFFFF: return "\\u%04x" % o
-    o -= 0x10000; return "\\u%04x\\u%04x" % (0xD800 + (o >> 10), 0xDC00 + (o & 0x3FF))
+    for lo, hi, how in ROWS:
+        if lo <= o <= hi:
+            if how == "itself": return ch
+            if how == "\\uXXXX": return "\\u%04x" % o
+            if how == "\\uXXXX\\uXXXX":
+                v = o - 0x10000; return "\\u%04x\\u%04x" % (0xD800 + (v >> 10), 0xDC00 + (v & 0x3FF))
+            return how
+    raise ValueError(f"V2.13's table has no row for U+{o:04X}")
 def s(x): return "null" if x is None else '"' + "".join(esc(c) for c in x) + '"'
 def arr(xs): return "[" + ",".join(xs) + "]"
 def rec(obs, t, oa, n=None):
@@ -31,7 +43,8 @@ def page_vectors(page):
     return re.findall(r"\| `(\[\[.*?\]\])` \| `([0-9a-f]{64})` \|", txt)
 
 def main(page, trials=3000, seed=11):
-    fails = []
+    fails = []; ROWS[:] = escape_table(page)
+    if len(ROWS) < 5: fails.append("V2.13's escape table is missing or unreadable")
     for b, d in page_vectors(page):
         if hashlib.sha256(b.encode("ascii")).hexdigest() != d: fails.append(f"page vector {b[:40]} does not hash to its digest")
     if len(page_vectors(page)) < 5: fails.append("the page shows fewer than five vectors")

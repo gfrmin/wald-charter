@@ -1,5 +1,5 @@
-# CHARTER v0.2 appendix A: the answer is local, the instrument's reliability persists. A right grade makes the next episode worth 17/50 rather than 1/4.
-# exercises: V2.1, V2.2, V2.3, V2.4, V2.5, V2.12
+# 4.3: appendix_a_shipped.py with a product act `both`.
+# exercises: V2.6, V2.14
 world("appendix-a", closed=True)
 horizon(1, source="elicited")
 depth(1, source="elicited")
@@ -8,6 +8,9 @@ globals(["rel"])
 prior({"9/10": 1/2, "3/5": 1/2}, source="elicited")
 local_prior({"9/10": {"a1": 1/2, "a2": 1/2}, "3/5": {"a1": 1/2, "a2": 1/2}}, source="elicited")
 utility({"say a1": by("answer", {"a1": 1, "a2": -2}), "say a2": by("answer", {"a1": -2, "a2": 1}), "abstain": by("answer", {"a1": 0, "a2": 0})}, source="elicited")
-price({"ask": 0, "grade": 0}, source="elicited")
+price({"ask": 0, "both": 1/10, "grade": 0}, source="elicited")
 act("ask", once=True, kernel=table({("a1", "9/10"): {"a1": 9/10, "a2": 1/10}, ("a2", "9/10"): {"a2": 9/10, "a1": 1/10}, ("a1", "3/5"): {"a1": 3/5, "a2": 2/5}, ("a2", "3/5"): {"a2": 3/5, "a1": 2/5}}, source="elicited"), reads=["answer", "rel"])
+act("both", once=True, kernel=product(table({("a1", "9/10"): {"a1": 9/10, "a2": 1/10}, ("a2", "9/10"): {"a2": 9/10, "a1": 1/10}, ("a1", "3/5"): {"a1": 3/5, "a2": 2/5}, ("a2", "3/5"): {"a2": 3/5, "a1": 2/5}}, source="elicited"), table({("a1", "9/10"): {"a1": 9/10, "a2": 1/10}, ("a2", "9/10"): {"a2": 9/10, "a1": 1/10}, ("a1", "3/5"): {"a1": 3/5, "a2": 2/5}, ("a2", "3/5"): {"a2": 3/5, "a1": 2/5}}, source="elicited")), reads=["answer", "rel"])
 after("grade", kernel=table({"say a1": {("a1", "9/10"): {"a1": 1}, ("a2", "9/10"): {"a2": 1}, ("a1", "3/5"): {"a1": 1}, ("a2", "3/5"): {"a2": 1}}, "say a2": {("a1", "9/10"): {"a1": 1}, ("a2", "9/10"): {"a2": 1}, ("a1", "3/5"): {"a1": 1}, ("a2", "3/5"): {"a2": 1}}, "abstain": {("a1", "9/10"): {"a1": 1}, ("a2", "9/10"): {"a2": 1}, ("a1", "3/5"): {"a1": 1}, ("a2", "3/5"): {"a2": 1}}}, source="data"), reads=["answer"])
+counts([[[["ask", "a1"]], "say a1", "a1", 1]], sha256="c0cd11a6dbce579fb5a0ccc1e157fd2316358b4d31bcb47889e8072c50b53dba", source="data")
+score(3/8, of="counts", source="data")

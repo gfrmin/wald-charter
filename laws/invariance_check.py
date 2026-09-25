@@ -32,9 +32,26 @@ def remap(W, fl=lambda l: l, fg=lambda g: g, fname=lambda x: x, locals_=None, gl
         if fs: V["falsifiers"] = fs
     return V
 
+def deep(f):
+    "apply a renaming to a name, or element by element to a product outcome (a tuple of names)"
+    return lambda x: tuple(deep(f)(v) for v in x) if isinstance(x, tuple) else f(x)
+
 def rename(W):
-    f = lambda x: x + "~"
+    f = deep(lambda x: x + "~")
     return remap(W, fl=lambda l: tuple(f(v) for v in l), fg=lambda g: tuple(f(v) for v in g), fname=f), (lambda g: tuple(v[:-1] for v in g))
+
+HOSTILE = ['"', "\\", "\t", "=", ":", "é", "中", "😀", "\x7f", " ", "/", "\x01"]
+def hostile(W):
+    """rename every name with a suffix from the characters that meet the page's own syntax: quotes, backslashes, control
+    characters, '=' and ':' (the ending end's syntax), non-ASCII and astral characters (attack session 4, 3.1 and 4.1).
+    Only what a stated rule forbids is avoided: CR and surrogates (V2.11), and a terminal beginning 'end:' (V2.6)."""
+    names = sorted({x for c, vs in W["locals"] + W["globals"] for x in [c] + list(vs)} | set(W["T"]) | set(W["O"])
+                   | {v for a in W["O"].values() for row in a["K"].values() for o in row for v in (o if isinstance(o, tuple) else (o,))}
+                   | ({W["after"].get("name", "after")} | {o for K in W["after"]["K"].values() for row in K.values() for o in row} if W.get("after") else set()))
+    m = {x: x + HOSTILE[i % len(HOSTILE)] + str(i) for i, x in enumerate(names)}
+    f = deep(lambda x: m.get(x, x))
+    back = {v: k for k, v in m.items()}
+    return remap(W, fl=lambda l: tuple(f(v) for v in l), fg=lambda g: tuple(f(v) for v in g), fname=f), (lambda g: tuple(back.get(v, v) for v in g))
 
 def pad_local(W):
     L = W["locals"] + [("pad", ["only"])]
@@ -79,7 +96,7 @@ def summary(W, back):
     for g, p in C.post_global(W, C.evidence(W)).items(): pg[back(g)] += p
     return v, a, dict(pg)
 
-TRANSFORMS = [("rename", rename), ("pad a local", pad_local), ("pad a Global", pad_global), ("remove a one-valued local", unpad), ("split a Global into twins", twin)]
+TRANSFORMS = [("rename", rename), ("rename with hostile characters", hostile), ("pad a local", pad_local), ("pad a Global", pad_global), ("remove a one-valued local", unpad), ("split a Global into twins", twin)]
 
 def worlds():
     here = os.path.dirname(os.path.abspath(__file__)); out = []

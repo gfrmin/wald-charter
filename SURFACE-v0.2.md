@@ -1,25 +1,41 @@
 # SURFACE v0.2 — amendment: declaring what is learned between episodes
 
-Status: **draft 9, unsigned.** In force from the author-signed tag `surface-v0.2`, together with `surface-v0` and `surface-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. This page gives syntax to what CHARTER v0.2 (signed, tag `charter-v0.2`) adds — Globals, P(local \| Global), the After-act, shipped Counts with their falsifying records, digest and Score — and nothing else.
+Status: **draft 10, unsigned.** In force from the author-signed tag `surface-v0.2`, together with `surface-v0` and `surface-v0.1`. Where the pages speak of the same thing, the later decides; everything this page does not mention stands as signed. This page gives syntax to what CHARTER v0.2 (signed, tag `charter-v0.2`) adds — Globals, P(local \| Global), the After-act, shipped Counts with their falsifying records, digest and Score — and nothing else.
 
 **How this page is written.** Every rule is stated once, as V2.0–V2.14 in §1. Every other section cites rules by ID, and §2 and §3 are generated from the rules and the references by `laws/page_check.py`. Rules of other signed pages are cited by ID: `C2.S12` is CHARTER v0.2's S12, `V0.reads` is SURFACE v0's rule that a kernel names what it reads. `laws/surface_check.py` is the reference, and every refusal it makes names its rule; `laws/counts_check.py` supplies CHARTER v0.2's. `laws/gate.py` runs every mechanical check — this page's traceability, invariance under re-spelling, a second encoder for V2.13, the references and the kit's stand-ins — and an attack runs only once it passes. Marks [K19]–[K28] are the owner's rulings (§4).
 
 ## 1. Rules
 
 - **V2.0** Each of `globals`, `local_prior`, `after`, `counts` and `falsifiers` is declared at most once. Refused DUPLICATE.
-- **V2.1** `globals(["component", ...])` names which components of the space are Global; the rest are local. It comes after `space` and before `prior`; each name is a component of the space, named once. Every component may be Global: a monitor, whose one local value is `()` [K19]. Refused MISSING (out of order), NOT_A_DECLARATION (not a list of names), UNKNOWN_NAME, DUPLICATE.
+- **V2.1** `globals(["component", ...])` names which components of the space are Global; the rest are local. It comes after `space` and before `prior`; each name is a component of the space, named once. Every component may be Global: a monitor, whose one local value is `()` [K19]. Refused MISSING (out of order), NOT_A_DECLARATION (not a non-empty list of names: a World with no Global omits `globals`), UNKNOWN_NAME, DUPLICATE.
 - **V2.2** With Globals declared, `prior({g: p, ...}, source=…)` is P(Global), keyed by Global value — a name when one component is Global, a tuple in the space's order when several are — with cells strictly positive and summing to 1. Without Globals it is SURFACE v0's prior over states [K20]. Refused NOT_A_DECLARATION (not a dict), TABLE_SHAPE (a value outside the space), PRIOR — which C2.J20 also refuses of a World given as data.
 - **V2.3** `local_prior({g: {l: p, ...}, ...}, source=…)` is P(local \| Global). It comes after `prior`, and is required with Globals when some component is local, and allowed only then. It has one row for exactly the Global values the prior names, each keyed by local values of the space, its cells never negative and each row summing to 1 [K20]. Refused MISSING, NOT_A_DECLARATION (in a World whose every component is Global), TABLE_SHAPE, PRIOR.
 - **V2.4** The states are the pairs (local, Global) to which V2.2 and V2.3 together give positive probability. Every other table over states — utilities, kernels, `by(...)` — is keyed by those states as in SURFACE v0, a state being the tuple of its components in the space's order; and wherever an earlier page counts states — "\|Ω\|", "what the prior names", the length of SURFACE v0.1's `cost` — it means these [K20].
 - **V2.5** `after(name, kernel=table({end: {state: {outcome: p}}}, source=…), reads=[...])` declares the After-act of C2.S12: a name; a kernel with rows for exactly the ends — each terminal, and `(act, outcome)` for each ending outcome — each with a row for every state, or C2.S12 refuses it AFTER; `reads` naming every component the kernel depends on, as V0.reads asks of an act; and a price, the cell of `price` under its name. It needs no Global [K21]. Refused NOT_A_DECLARATION, UNDECLARED_READ, UNKNOWN_NAME (a read component outside the space), MISSING (no price).
-- **V2.6** `counts([[draws, end, after, n], ...], sha256="…", source="data")` ships the Counts of C2.S13 inline. A row is a record — `draws` a list of `[act, outcome]` in the order taken, every outcome a name [K27]; `end` a terminal or `"end:act=outcome"`; `after` the after-report or `None` — and `n`, a whole-number literal, at least 1. Each record at most once; the list may be empty; the source is `data` [K22]. Refused NOT_A_DECLARATION, FLOAT, DUPLICATE, TABLE_SOURCE.
+- **V2.6** `counts([[draws, end, after, n], ...], sha256="…", source="data")` ships the Counts of C2.S13 inline. A row is a record — `draws` a list of `[act, outcome]` in the order taken, every outcome a name [K27]; `end` a terminal or `"end:act=outcome"`; `after` the after-report or `None` — and `n`, a whole number at least 1, written as decimal digits — no sign, base prefix, underscore or exponent, and not `True`. Each record at most once; the list may be empty; the source is `data` [K22]. No terminal's name begins `end:`, which is reserved for the ends of ending outcomes. Refused NOT_A_DECLARATION, FLOAT, DUPLICATE, TABLE_SOURCE.
 - **V2.7** `falsifiers([[draws, end, after], ...])`, only with `counts`, ships the falsifying records of C2.J26: one for each plate the Counts passed through that ended falsified, so a chain of refits ships several. Each is a prefix `[draws, None, None]` ending at the report that falsified, or a full record whose after-report falsified; each at most once. Which records may be falsifiers, and whether the whole is possible, is C2.S13's, as corrected by `ERRATA.md` (CHARTER v0.3, item 3). Refused MISSING, NOT_A_DECLARATION, DUPLICATE.
 - **V2.8** `score(value, of="counts", source="data")`, only with `counts`, declares the Score of C2.S14 as corrected by `ERRATA.md` item 3: for every copy of every record and every falsifying record, its likelihood under the prior conditioned on all the others, multiplied together; the kernel recomputes it [K28]. Refused MISSING, DUPLICATE.
 - **V2.9** A World that declares `after`, `counts` or `falsifiers` without Globals has one Global value, `()`: it learns nothing across episodes, its Counts still travel, and its grades still check the model.
 - **V2.10** No utility or ending utility is written `by(...)` over a Global component, for C2.S11's rule is one of form; refused GLOBAL. Utilities that differ between two states sharing their local part are C2.S11's to refuse; a utility written over a local that copies a Global is lawful.
-- **V2.11** A pack is UTF-8 text with LF line endings. A coding declaration naming another encoding, a CR byte anywhere, or a surrogate code point in any string, paired or not, is refused NOT_A_DECLARATION. A checker reads a pack's bytes as written [K26].
+- **V2.11** A pack is UTF-8 text with LF line endings. A coding declaration naming another encoding, a CR byte anywhere, a surrogate code point in any string, paired or not, or an identifier — a declaration's name, a keyword, a parameter's name — outside ASCII, which Python would fold to another name, is refused NOT_A_DECLARATION. A checker reads a pack's bytes as written [K26].
 - **V2.12** Every cell of `local_prior`, every cell of the After-act's kernel, each multiplicity of `counts`, and a counts score counts once in the census, under its table's source — a cell that reads a parameter too, as SURFACE v0.1 K17 fixed; a multiplicity under `data`. Names and the digest are not numerals.
-- **V2.13** The digest `sha256` is the SHA-256, lowercase hex, of the bytes of the compact JSON array `[counts, falsifiers]`: `counts` the records `[draws,end,after,n]`, `falsifiers` the falsifying records `[draws,end,after]`, each array's elements in ascending order of their bytes; no whitespace; strings with the escapes `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\u` with four lowercase hex digits for every other character outside U+0020–U+007E — DEL included — with a surrogate pair beyond U+FFFF; every character from U+0020 to U+007E, `/` included, as itself; `null` for an absent end or after-report; a multiplicity as decimal digits with no sign, exponent or leading zero [K23]. A digest that is not this, C2.S13 refuses PLATE. Five vectors, each reproducible with `printf '%s'` and `sha256sum` alone:
+- **V2.13** The digest `sha256` is the SHA-256, lowercase hex, of the bytes of the compact JSON array `[counts, falsifiers]`: `counts` the records `[draws,end,after,n]`, `falsifiers` the falsifying records `[draws,end,after]`, each array's elements in ascending order of their bytes; no whitespace; each character of a string written as the escape table below gives, the first row whose range holds it deciding — `\uXXXX` meaning `\u` and four lowercase hex digits of the code point, and `\uXXXX\uXXXX` its UTF-16 surrogate pair; `null` for an absent end or after-report; a multiplicity as decimal digits with no sign, exponent or leading zero [K23]. A digest that is not this, C2.S13 refuses PLATE. The escape table, which `laws/encoding_check.py` reads to build its encoder:
+
+| from | to | written as |
+| --- | --- | --- |
+| U+0022 | U+0022 | `\"` |
+| U+005C | U+005C | `\\` |
+| U+0008 | U+0008 | `\b` |
+| U+000C | U+000C | `\f` |
+| U+000A | U+000A | `\n` |
+| U+000D | U+000D | `\r` |
+| U+0009 | U+0009 | `\t` |
+| U+0000 | U+001F | `\uXXXX` |
+| U+0020 | U+007E | itself |
+| U+007F | U+FFFF | `\uXXXX` |
+| U+10000 | U+10FFFF | `\uXXXX\uXXXX` |
+
+Five vectors, each reproducible with `printf '%s'` and `sha256sum` alone:
 
 | case | the bytes | the digest |
 | --- | --- | --- |
@@ -29,7 +45,7 @@ Status: **draft 9, unsigned.** In force from the author-signed tag `surface-v0.2
 | a falsifier inside an episode | `[[[[["ask","a1"]],"say a1","a1",1]],[[[["ask","a3"]],null,null]]]` | `dd1eaa3a4086b8bdf45c0c114f9b3505a15d69daa233c9940fa5984d5af519d0` |
 | a slash and a tab | `[[[[["ask","a/b\t"]],"say a1","a1",1]],[]]` | `710e0cda6e91f6f52f4b8a6ef6898adb2948075a12fd29b4889908abfb55e8e9` |
 
-- **V2.14** Not sayable in v0.2: a drift of the Globals between episodes; Counts shared between Worlds; Counts read from a file [K24]; Counts from a World with product outcomes, by V2.6's record [K27]; and a catch-all state ⊥ beside Globals [K25], refused NOT_A_DECLARATION.
+- **V2.14** Not sayable in v0.2: a drift of the Globals between episodes; Counts shared between Worlds; Counts read from a file [K24]; a record holding a product outcome, a tuple, which V2.6's record cannot write [K27] — a World with a product kernel may ship Counts whose outcomes are names; and a catch-all state ⊥ in a World that declares `globals` [K25], refused NOT_A_DECLARATION — without `globals`, ⊥ is SURFACE v0's, and C2.J20's local ⊥ under the one Global value.
 
 *A note, not a rule:* V0.reads shows what a kernel reads directly, not everything a World can learn. A local spelt per Global value carries the Global into a kernel that reads only the local. What can be learned is C2.S15's disclosure.
 
@@ -61,23 +77,23 @@ Generated: each rule, the names it refuses by, how many poisons test it, and the
 | rule | refused by | poisons | exercised by |
 | --- | --- | --- | --- |
 | V2.0 | DUPLICATE | 1 | — |
-| V2.1 | DUPLICATE, MISSING, NOT_A_DECLARATION, UNKNOWN_NAME | 4 | appendix_a, monitor_all_global |
+| V2.1 | DUPLICATE, MISSING, NOT_A_DECLARATION, UNKNOWN_NAME | 5 | appendix_a, monitor_all_global |
 | V2.2 | NOT_A_DECLARATION, PRIOR, TABLE_SHAPE | 3 | appendix_a, router_credence_prior |
 | V2.3 | MISSING, NOT_A_DECLARATION, PRIOR, TABLE_SHAPE | 5 | appendix_a |
 | V2.4 | — | 0 | appendix_a, monitor_all_global, router_credence_prior, two_instruments |
 | V2.5 | MISSING, NOT_A_DECLARATION, UNDECLARED_READ, UNKNOWN_NAME | 4 | appendix_a |
-| V2.6 | DUPLICATE, FLOAT, NOT_A_DECLARATION, TABLE_SOURCE | 5 | appendix_a_shipped, monitor_shipping |
+| V2.6 | DUPLICATE, FLOAT, NOT_A_DECLARATION, TABLE_SOURCE | 9 | appendix_a_shipped, monitor_shipping, product_kernel_name_counts |
 | V2.7 | DUPLICATE, MISSING, NOT_A_DECLARATION | 3 | falsified_refit, prefix_falsifier |
 | V2.8 | DUPLICATE, MISSING | 2 | appendix_a_shipped, monitor_shipping |
-| V2.9 | — | 0 | after_without_globals |
+| V2.9 | — | 0 | after_without_globals, bottom_without_globals |
 | V2.10 | GLOBAL | 1 | — |
-| V2.11 | NOT_A_DECLARATION | 4 | — |
+| V2.11 | NOT_A_DECLARATION | 6 | — |
 | V2.12 | — | 0 | appendix_a, appendix_a_shipped |
-| V2.13 | — | 0 | appendix_a_shipped, encoding_check.py |
-| V2.14 | NOT_A_DECLARATION | 1 | — |
+| V2.13 | — | 0 | appendix_a_shipped, quotes_escaped_digest, quotes_in_names, encoding_check.py |
+| V2.14 | NOT_A_DECLARATION | 1 | bottom_without_globals, product_kernel_name_counts |
 | C2.S11 | GLOBAL | 2 | — |
 | C2.S12 | AFTER | 2 | — |
-| C2.S13 | PLATE | 7 | — |
+| C2.S13 | PLATE | 8 | — |
 | C2.S14 | UNSCORED | 2 | — |
 | V0.reads | UNDECLARED_READ | 1 | — |
 <!-- /generated -->
@@ -121,6 +137,8 @@ Attack sessions:
 
 - Between sessions 3 and 4, the page was rewritten as rules stated once (draft 8), with the gate. The gate's first run found that V2.13's text wrote DEL as itself while the reference escapes it — which no vector contains, and three sessions had not seen. V2.13 now says what the reference does: every character outside U+0020–U+007E is escaped. The invariance check found that the reference's printer could not write a World with no Global.
 
+- Session 4, on draft 9 (2026-09-24): every claim reproduced, CHARTER v0.2's appendices cross-checked. Categories 1, 2 and 5: nothing under any single reading — the first session on either v0.2 page with no smuggling finding. Findings: 3.1 (a terminal named like an ending end, `"end:ask=x"`); 3.2 (a multiplicity written `True`, which V0 §1 lists as a literal); 3.3 (`globals([])`); 4.1 (V2.13 both escaped `"` and `\` and wrote every character from U+0020 to U+007E as itself — which, read the second way, makes two Counts share a digest); 4.2 (⊥ in a World with an After-act and no Global); 4.3 (Counts through a product kernel whose records hold only names); 4.4 (Python folds identifiers to NFKC: `ſcore` is `score` to the parser). Handled gate-first, by asking which mechanical check should have found each: the invariance check gains a hostile renaming — quotes, backslashes, control characters, `=`, `:`, non-ASCII and astral characters in every name — for 3.1 and 4.1; V2.13's escapes become a table that `encoding_check.py` reads, so its encoder is the page's and no longer the author's reading of it, for 4.1; the corpus gains every literal form a multiplicity might take, for 3.2. Then the page: V2.1 a non-empty list; V2.6 decimal digits and the reserved prefix `end:`; V2.11 ASCII identifiers; V2.13 the table; V2.14 ⊥ only beside declared Globals, and product outcomes only where a record would hold one. The reference had accepted 3.1 and 4.4a; it now refuses them.
+
 ## Appendix — CHARTER v0.2's appendix A, as a pack
 
-`laws/packs/ok/appendix_a.py`: the space `{"answer": [a1, a2], "rel": [9/10, 3/5]}`, `globals(["rel"])`, P(rel) uniform, P(answer \| rel) uniform, `ask` reading `answer` and `rel`, the After-act `grade` reading `answer` and revealing it at every end. It elaborates to exactly the World of `counts_check.reliability_world`, its first act is `ask` at 1/4, one right grade moves the reliability to (3/5, 2/5), and its census is data 12, elicited 24. `laws/packs/ok/appendix_a_shipped.py` is that pack with two lines added — `counts` holding that one right grade, digest `c0cd11a6…53dba` (the first vector of §3), and its Score, 3/8 — and nothing else changed: its census is data 14, elicited 24, and its plate starts at (3/5, 2/5), first act `ask` at 17/50.
+`laws/packs/ok/appendix_a.py`: the space `{"answer": [a1, a2], "rel": [9/10, 3/5]}`, `globals(["rel"])`, P(rel) uniform, P(answer \| rel) uniform, `ask` reading `answer` and `rel`, the After-act `grade` reading `answer` and revealing it at every end. It elaborates to exactly the World of `counts_check.reliability_world`, its first act is `ask` at 1/4, one right grade moves the reliability to (3/5, 2/5), and its census is data 12, elicited 24. `laws/packs/ok/appendix_a_shipped.py` is that pack with two lines added — `counts` holding that one right grade, digest `c0cd11a6…53dba` (V2.13's first vector), and its Score, 3/8 — and nothing else changed: its census is data 14, elicited 24, and its plate starts at (3/5, 2/5), first act `ask` at 17/50.

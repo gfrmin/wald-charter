@@ -6,7 +6,7 @@ Part 2  the corpus: every pack under packs/ok must elaborate and give the frozen
 Part 3  round trip: random Worlds printed as packs must elaborate back to the same World (the grammar can say every World).
 Run:  python3 laws/surface_check.py        (exit code 0 = the surface page passes)
 """
-import ast, hashlib, inspect, itertools, json, keyword, os, random, sys, textwrap
+import ast, re, hashlib, inspect, itertools, json, keyword, os, random, sys, textwrap
 from fractions import Fraction as F
 from collections import Counter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +23,7 @@ V02_ONCE = ("globals", "local_prior", "after", "counts", "falsifiers")  # SURFAC
 
 class Checker:
     def __init__(self, text, hosts=None, data_dir="."):
+        self.src = text
         self.hosts, self.data_dir = hosts or {}, data_dir
         self.params, self.param_src, self.param_prov, self.read, self.seen, self.census = {}, {}, {}, set(), {}, {t: 0 for t in TAGS}
         self.host_prints = {}
@@ -307,6 +308,8 @@ class Checker:
             if not (isinstance(row, ast.List) and len(row.elts) == 4): raise Refused("NOT_A_DECLARATION", f"[V2.6] line {row.lineno}: a Counts row is [draws, end, after, n]")
             n = row.elts[3]
             if isinstance(n, ast.Constant) and isinstance(n.value, float): raise Refused("FLOAT", f"[V2.6] line {n.lineno}")
+            seg = ast.get_source_segment(self.src, n) if hasattr(self, "src") else None
+            if seg is not None and not re.fullmatch(r"[1-9][0-9]*", seg): raise Refused("NOT_A_DECLARATION", f"[V2.6] line {row.lineno}: a multiplicity is written as decimal digits, not {seg!r}")
             if not (isinstance(n, ast.Constant) and isinstance(n.value, int) and not isinstance(n.value, bool) and n.value >= 1):
                 raise Refused("NOT_A_DECLARATION", f"[V2.6] line {row.lineno}: a multiplicity is a whole number written out, at least 1")
             rec_ = self.record(ast.List(elts=row.elts[:3], ctx=ast.Load(), lineno=row.lineno), row.lineno)
@@ -407,6 +410,8 @@ class Checker:
         s = self.spec_v01()
         if getattr(self, "after", None): self.prices[self.after["name"]] = aprice
         if self.globals_ and s.get("bottom") is not None: raise Refused("NOT_A_DECLARATION", "[V2.14] a catch-all state beside Globals is not sayable in v0.2 (K25)")
+        for t in self.T:
+            if isinstance(t, str) and t.startswith("end:"): raise Refused("NOT_A_DECLARATION", f"[V2.6] the terminal {t!r}: names beginning 'end:' are reserved for ending ends")
         tup = lambda x: x if isinstance(x, tuple) else (x,)
         W = {"locals": [(c, list(self.space[c])) for c in self.locals_], "globals": [(c, list(self.space[c])) for c in self.globals_],
              "prior_global": {tup(g): p for g, p in self.prior_g.items()},
@@ -502,6 +507,12 @@ def _plain_text(text):
         m = re.match(r"^[ \t\f]*#.*?coding[:=][ \t]*([-\w.]+)", line)
         if m and m.group(1).lower().replace("_", "-") not in ("utf-8", "utf8"): raise Refused("NOT_A_DECLARATION", f"[V2.11] a pack is UTF-8, not {m.group(1)}")
     if "\r" in text: raise Refused("NOT_A_DECLARATION", "[V2.11] a pack's lines end in LF; it holds no CR, so a name is the same to every reader (session 3, 3.1)")
+    import io, tokenize
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type == tokenize.NAME and not tok.string.isascii():
+                raise Refused("NOT_A_DECLARATION", f"[V2.11] line {tok.start[0]}: an identifier is ASCII; {tok.string!r} would be folded to another name")
+    except (tokenize.TokenError, SyntaxError, IndentationError): pass
     try: tree = ast.parse(text)
     except SyntaxError: return
     for node in ast.walk(tree):
@@ -568,7 +579,7 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__)); ok = True
     frozen = {"appendix.py": (F(-51, 50), "test"), "shared_draw.py": (F(0), "hold"), "wordle_mini.py": (F(-5, 3), "cat"), "noisy_test.py": (F(-319, 250), "test"),
               "two_sources.py": (F(-319, 250), "test"), "three_states.py": (F(3, 40), "k1"), "garbling_direction.py": (F(0), "hold"), "kernel_from_file.py": (F(-51, 50), "test"), "fitted_reads_data.py": (F(-51, 50), "test"), "prior_of_two_sources.py": (F(0), "hold"), "census_counts_cells.py": (F(-51, 50), "test"), "param_named_after_a_declaration.py": (F(-51, 50), "test"),
-              "appendix_a.py": (F(1, 4), "ask"), "appendix_a_shipped.py": (F(17, 50), "ask"), "falsified_refit.py": (F(1140850621, 3355443250), "ask"), "router_credence_prior.py": (F(1, 6), "exec"), "two_instruments.py": (F(23, 80), "ask"), "after_without_globals.py": (F(1, 4), "ask"), "monitor_all_global.py": (F(0, 1), "ship"), "monitor_shipping.py": (F(0, 1), "file"), "prefix_falsifier.py": (F(11912381800368774150598599799, 14931164199631225849401400201), "ask")}
+              "appendix_a.py": (F(1, 4), "ask"), "appendix_a_shipped.py": (F(17, 50), "ask"), "falsified_refit.py": (F(1140850621, 3355443250), "ask"), "router_credence_prior.py": (F(1, 6), "exec"), "two_instruments.py": (F(23, 80), "ask"), "after_without_globals.py": (F(1, 4), "ask"), "monitor_all_global.py": (F(0, 1), "ship"), "monitor_shipping.py": (F(0, 1), "file"), "prefix_falsifier.py": (F(11912381800368774150598599799, 14931164199631225849401400201), "ask"), "quotes_in_names.py": (F(127, 1220), "ask"), "quotes_escaped_digest.py": (F(0, 1), "abstain"), "bottom_without_globals.py": (F(43, 100), "ask"), "product_kernel_name_counts.py": (F(39, 100), "both")}
     print("lawful packs:")
     for fn in sorted(os.listdir(os.path.join(here, "packs/ok"))):
         if not fn.endswith(".py"): continue
