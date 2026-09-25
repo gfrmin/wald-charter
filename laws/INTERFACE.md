@@ -90,3 +90,13 @@ Deferred to brief 002, because they need the surface syntax: unhoused numerals a
 
 `Result` gains `record`. The Door is unchanged: the After-act is an observational act the door answers by name, asked only after the terminal has fired.
 
+## Declaring what is learned (kit v0.12, under `SURFACE-v0.2.md`, tag `surface-v0.2`, and `CHARTER-v0.2.md` as SURFACE v0.2 V2.7 and V2.8 decide)
+
+`laws/model.py` states every shape passed between the references, the kit and an implementation, once, with validators; the gate checks every World against it, and the kit checks the adapter's outputs against it. Where this file and `model.py` differ, `model.py` is right.
+
+- **Packs.** `wald.load_pack(text, data_dir)` reads SURFACE v0.2 packs exactly as `laws/surface_check.py` does — `globals`, `local_prior`, `after` with its `reads`, `counts`, `falsifiers`, `score(of="counts")` — refusing by every name and rule V2.0–V2.14 give, and returning the World as the kit v0.11 dict describes it. A pack is read as UTF-8 bytes as written, with no newline translation (V2.11). `kit_surface.py` judges this on the whole corpus, v0.2's 14 lawful packs and 58 poisons included.
+- **The digest.** The adapter gains `digest(counts, falsifiers) -> str`: V2.13's SHA-256 over `[counts, falsifiers]`, escapes as its table gives. Kit v0.11's digest, Python's default `json.dumps` of the Counts alone, is withdrawn.
+- **The Score.** `score(world, counts, falsifiers=())` multiplies a term for every copy of every record **and every falsifying record** (V2.8). A plate's prior conditions on its falsifying records as on its Counts.
+- **Falsifying records.** A prefix `(draws, None, None)` is shippable; a full record with no after-report is refused PLATE (V2.7).
+- **`wald.law`** is `{"charter": "charter-v0.2", "surface": "surface-v0.2", "kit": <the lock's tag>}` (brief 007, Q7).
+

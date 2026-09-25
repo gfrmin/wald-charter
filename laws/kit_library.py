@@ -65,7 +65,7 @@ def main(impl, seed=1):
     if not all(hasattr(wald, n) for n in names):
         return report(results)
     law = wald.law
-    check("L1 wald.law names charter-v0.1, surface-v0.1 and the kit tag of the lock", law.get("charter") == "charter-v0.1" and law.get("surface") == "surface-v0.1" and law.get("kit") == lock_tags(impl).get("kit"), f"got {law}, lock {lock_tags(impl)}")
+    check("L1 wald.law names the newest signed pages, charter-v0.2 and surface-v0.2, and the kit tag of the lock (brief 007, Q7)", law.get("charter") == "charter-v0.2" and law.get("surface") == "surface-v0.2" and law.get("kit") == lock_tags(impl).get("kit"), f"got {law}, lock {lock_tags(impl)}")
     # L2: appendix A and B through the wire spec and a scripted door
     for name, w, script, want in (("A", M.vector_A(), ["+"], ("test", "treat")), ("B", M.vector_B(), ["y", "+"], ("scan", "test", "treat"))):
         spec = wald.from_json(json.dumps(wire_spec(w)))

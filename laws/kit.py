@@ -14,6 +14,7 @@ kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in
 7. kit v0.9: the think act on Wordle (kit_wordle_think.py, wordle_meta_oracle.py): two adaptive packs, the oracle's buckets and costs, the E3 curves.
 8. kit v0.10: wald as a library (kit_library.py): the public names, wald.law against the lock, the wire spec, tools/serve.py over JSON lines.
 9. kit v0.11: CHARTER v0.2 (kit_counts.py, counts_check.py): what is learned between episodes - Globals, the After-act, Counts, S15's disclosure, E7, the public plate.
+10. kit v0.12: SURFACE v0.2 (surface_check.py and its corpus through kit_surface.py; model.py's shapes, V2.13's digest and V2.8's Score through kit_counts.py K7); wald.law names charter-v0.2 and surface-v0.2.
 Exit code 0 = the implementation passes. Nothing else counts.
 """
 import argparse, importlib, os, random, sys

@@ -12,6 +12,10 @@ K3  S15's disclosure, class for class, on the Worlds the page names: the router,
     (with the think act), and the three that list nothing (an echoing grader, a per-state bonus, a twin).
 K4  E7's lines, line for line: the degenerate label, the unconverged posterior, a World that is right.
 K5  the Score: the leave-one-out predictive probability, exactly.
+K7  kit v0.12: the adapter's shapes are model.py's; its digest is V2.13's on the page's five vectors and on fuzzed names; its
+    Score scores the falsifying records (V2.8), accepting the refit of attack session 5 at 363/10000 and refusing both of
+    signed S14's readings UNSCORED; a full record with no after-report is no falsifier (V2.7, PLATE); a prefix falsifier
+    is shippable (V2.7).
 K6  the public plate: `wald.plate(world)`, on the World the adapter builds from the dict, played against a scripted door,
     carries Counts from episode to episode - appendix
     A's two episodes, its acts, its Counts - and ends WORLD_FALSIFIED on a report of probability zero, the falsifying
@@ -109,7 +113,7 @@ def main(impl, seed, adapter=None, wald=None, quiet=False):
     if adapter is None:
         sys.path.insert(0, os.path.abspath(impl))
         a = importlib.import_module("wald.kit_adapter").make_agent()
-        missing = [m for m in ("prior", "persist", "declare", "disclose", "e7", "score", "world") if not hasattr(a, m)]
+        missing = [m for m in ("prior", "persist", "declare", "disclose", "e7", "score", "world", "digest") if not hasattr(a, m)]
         if missing: say(f"FAIL counts: the adapter lacks {missing} (INTERFACE.md, kit v0.11)"); return False
         adapter = a; wald = importlib.import_module("wald")
     I = Impl(adapter); rng = random.Random(seed)
@@ -144,12 +148,63 @@ def main(impl, seed, adapter=None, wald=None, quiet=False):
     A3 = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
     c3 = Counter({C.rec("a1", "a1", "say a1"): 2, C.rec("a1", "a2", "say a1"): 1})
     check("K5 the Score is the leave-one-out predictive probability: 1125/100672", _safe_call(adapter.score, A3, c3) == F(1125, 100672))
+    # K7
+    _k7(adapter, check)
     # K6
     if wald is not None: _public_plate(wald, adapter, check)
     for tag, good, note in results:
         if not good: say(f"FAIL {tag}   {note}")
     say(f"counts: {sum(g for _, g, _ in results)}/{len(results)} pass")
     return all(g for _, g, _ in results)
+
+def _k7(adapter, check):
+    import model as M, encoding_check as EC, glob, re
+    import surface_check as SC
+    here = os.path.dirname(os.path.abspath(__file__))
+    # shapes
+    A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    pr = _safe_call(adapter.prior, A, [C.rec("a1", "a1", "say a1")])
+    ok = isinstance(pr, dict) and all(isinstance(s, tuple) and len(s) == 2 and isinstance(s[0], tuple) and isinstance(s[1], tuple) and isinstance(p, F) for s, p in pr.items())
+    check("K7 the adapter's prior is keyed by model.py's states (local, Global) with exact Fractions", ok, f"got {str(pr)[:120]}")
+    # the digest: the page's vectors, then fuzzed names
+    cases = [(Counter([((("ask", "a1"),), "say a1", "a1")]), []), (Counter({((("ask", "a1"),), "abstain", None): 2}), []),
+             (Counter([((("ask", "é"),), "say é", "é")]), []), (Counter([((("ask", "a1"),), "say a1", "a1")]), [((("ask", "a3"),), None, None)]),
+             (Counter([((("ask", "a/b\t"),), "say a1", "a1")]), [])]
+    page = os.path.join(here, "..", "SURFACE-v0.2.md"); vec = [d for _, d in EC.page_vectors(page)] if os.path.exists(page) else []
+    got = [_safe_call(adapter.digest, c, f) for c, f in cases]
+    check("K7 the digest of V2.13's five vectors", got == [C.counts_sha(c, f) for c, f in cases] and (not vec or got == vec), f"got {[str(g)[:12] for g in got]}")
+    rng = random.Random(8); alphabet = list('ab"\\/\x7f\t\n=:') + ["é", "中", "😀"]; bad = 0
+    for _ in range(200):
+        nm = lambda: "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 3)))
+        record = (((nm(), nm()),), nm(), rng.choice([None, nm()]))
+        c = Counter({record: rng.randint(1, 10 ** rng.randint(0, 20))})
+        bad += _safe_call(adapter.digest, c, []) != C.counts_sha(c, [])
+    check("K7 the digest on 200 fuzzed record sets: quotes, backslashes, DEL, control, non-ASCII and astral names", bad == 0, f"{bad} differ")
+    # the Score with a falsifying record, and the two falsifier rules
+    for fn, want in (("refit_scored_falsifier.py", "accept"),):
+        W = SC.check(open(os.path.join(here, "packs/ok", fn), encoding="utf-8", newline="").read(), {}, os.path.join(here, "packs/ok"))
+        s_ = _safe_call(adapter.score, W, W["counts"], W.get("falsifiers", []))
+        check(f"K7 the Score scores the falsifying records: {fn} at 363/10000", s_ == F(363, 10000) == W["score"], f"got {s_}")
+    for fn, name in (("v02_s5_f4_1a_refit_s14_score.py", "UNSCORED"), ("v02_s5_f4_1a_refit_s14_score_ii.py", "UNSCORED"), ("v02_s5_f4_1b_full_record_falsifier.py", "PLATE")):
+        t = open(os.path.join(here, "packs/poison", fn), encoding="utf-8", newline="").read()
+        try:
+            SC.check(t, {}, os.path.join(here, "packs/poison")); check(f"K7 reference refuses {fn}", False, "the reference accepts it")
+        except Exception: pass
+        W = _world_of(t)
+        if W is None: continue
+        try: adapter.declare(W); check(f"K7 refused {name}: {fn}", False, "accepted")
+        except Exception as e: check(f"K7 refused {name}: {fn}", (getattr(e, "name", None) or str(e).split(":")[0]) == name, f"got {e}")
+    Wp = SC.check(open(os.path.join(here, "packs/ok/prefix_falsifier.py"), encoding="utf-8", newline="").read(), {}, os.path.join(here, "packs/ok"))
+    try: adapter.declare(Wp); check("K7 a prefix falsifier is shippable (V2.7)", True)
+    except Exception as e: check("K7 a prefix falsifier is shippable (V2.7)", False, f"refused {e}")
+
+def _world_of(text):
+    "the World a poison pack would declare, the charter's refusal switched off, so the kernel's own refusal is judged"
+    import surface_check as SC
+    orig = C.refuse; C.refuse = lambda W: W
+    try: return SC.check(text, {}, ".")
+    except Exception: return None
+    finally: C.refuse = orig
 
 def _safe(chk, I, W, recs, rng):
     try: return chk(I, W, recs, rng)
@@ -200,6 +255,8 @@ class _StandIn:
     def e7(self, W, counts): return C.diagnostic(W, counts)
     def score(self, W, counts): return C.loo_score(W, counts)
     def world(self, W): return C.refuse(W)
+    def digest(self, counts, falsifiers=()): return C.counts_sha(counts, falsifiers)
+    def score(self, W, counts, falsifiers=()): return C.loo_score(W, counts, falsifiers)
 
 class _RefWald:
     "the reference plate: v0's loop at the floor, the After-act taken whenever declared, Counts kept, J26"

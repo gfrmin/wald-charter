@@ -13,6 +13,7 @@ CHECKS = [
     ("SURFACE v0.2 traceability: rules stated once, every rule tested", ["page_check.py", os.path.join(HERE, "..", "SURFACE-v0.2.md")]),
     ("invariance under re-spelling", ["invariance_check.py"]),
     ("V2.13 by a second encoder", ["encoding_check.py"]),
+    ("every World has the shape model.py states", ["model_check.py"]),
     ("the kit's counts judge, stand-in", ["kit_counts.py", "--standin"]),
 ]
 def main():
