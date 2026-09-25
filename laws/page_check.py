@@ -11,7 +11,10 @@ and `# rule: ID`; a lawful pack may declare `# exercises: ID, ...`. Checked:
   T3 every (rule, name) a reference can refuse by at declaration has a poison, and every poison dies by its declared name
      and rule, not merely its name;
   T4 every stated rule is tested: a refusal site with a poison, or a lawful pack or gate check that exercises it;
-  T5 the page's generated sections are what the rules and references give.
+  T5 the page's generated sections are what the rules and references give;
+  T6 a rule draws its meaning only from signed pages and this one: no rule names ERRATA.md, a draft, or any other file
+     as the source of what it says (attack session 5 on SURFACE v0.2, 4.1: V2.7 and V2.8 took their meaning from
+     ERRATA.md, which binds nothing).
 """
 import glob, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -88,6 +91,11 @@ def main(page, write=False):
     for r in defs:
         tested = any(rr == r for rr, _ in site) or any(r in l[1] for l in lawful) or r in GATE_EXERCISES
         if not tested: fails.append(f"T4 {r} is stated and nothing tests it")
+    # T6
+    m6 = re.search(r"^## 1\. Rules\n(.*?)^## ", text, re.S | re.M)
+    if m6:
+        for ref in sorted(set(re.findall(r"`?([A-Za-z0-9_.-]+\.md)`?", m6.group(1)))):
+            fails.append(f"T6 a rule takes its meaning from {ref}, which is not a signed page cited by ID")
     # T5
     gen = render(defs, site, pois, lawful)
     for key, body in gen.items():
