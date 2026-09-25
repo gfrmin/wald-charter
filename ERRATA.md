@@ -15,3 +15,12 @@ Signed pages are not edited (CHARTER §8). Wording found wanting is queued here 
 ## Queued for SURFACE v0.2 — folded into its §2 (draft 7)
 
 1. **§3's "A parameter keeps its own source wherever it is read" admits two census readings** (attack on SURFACE v0.1, session 2, finding 4.2): the cell that reads a parameter counts under the table's source (what `laws/surface_check.py` has done since `surface-v0`) or under the parameter's. SURFACE v0.1 K17 fixes the former as the reading in force. No act changes; only a printed census.
+
+## Cosmetic — for each page's next amendment
+
+Signed pages are never edited: editing one breaks its tag, and `gfrmin/wald`'s `cage/fetch_charter.sh` refuses a page that differs from it. Nothing below changes a rule, a verdict or a number. Each is to be restated by the next amendment of that page.
+
+1. **CHARTER v0.1's status line says "draft 6, unsigned."**, as signed at `charter-v0.1`. It is signed, and in force from that tag. To be restated in CHARTER v0.3. Found on reading, 2026-09-25.
+2. **SURFACE v0.1's status line says "draft 4, unsigned."**, as signed at `surface-v0.1`. It is signed, and in force from that tag. To be restated in SURFACE v0.3. Found on reading, 2026-09-25.
+3. **SURFACE v0.1's rulings table (K12–K18) has empty ruling and date cells.** The owner ruled the marks before signing, but the page never recorded them. SURFACE v0.3 is to record each ruling and its date from the owner's record, not from this file. Found on reading, 2026-09-25.
+4. **SURFACE v0's attack log ends with a blank template**, "Signed as `surface-v0`: ___ claimed, ___ reproduced, resolved or carried to v0.1: ___." The four sessions above it are the record. To be filled or struck in SURFACE v0.3. Found on reading, 2026-09-25.

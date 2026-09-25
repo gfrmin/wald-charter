@@ -68,7 +68,7 @@ Deferred to brief 002, because they need the surface syntax: unhoused numerals a
 - `prior_global`: `{g: Fraction}`; `prior_local`: `{g: {l: Fraction}}` — P(local | Global), each row summing to 1; a zero leaves the state out of Ω.
 - `T`: `{terminal: {(l, g): Fraction}}`; `O`: `{act: {"K": {(l, g): {outcome: Fraction}}, "price": Fraction, "once": bool}}`, optionally `"ends"` (a set of ending outcomes) and `"u_end"` (`{outcome: Fraction}`, the ending utility). `N`, `d`, and optionally `dplus`, `fraction`, `rate`, `ops` (CHARTER v0.1).
 - `after`, optional: `{"K": {end: {(l, g): {outcome: Fraction}}}, "price": Fraction, "name": str}` — the After-act, a kernel for every end; `name` defaults to `"after"`.
-- Shipped Counts, optional: `counts` (a `Counter` of records), `counts_sha` (hex), `score` (Fraction), `falsifier` (one record).
+- Shipped Counts, optional: `counts` (a `Counter` of records), `counts_sha` (hex), `score` (Fraction), `falsifiers` (a list of records: one for each plate the Counts passed through that ended falsified, SURFACE v0.2 V2.7; `model.py` states the shape). Kit v0.11 took a single `falsifier`; kit v0.12 made it the list.
 - **A record** is `(((act, outcome), ...), end, after_outcome)`: the draws in order, the terminal fired (or, for an ending outcome, `"end:act=outcome"`), and the after-report or `None`.
 
 **The adapter gains seven methods**, each conversion around one kernel call (E5):

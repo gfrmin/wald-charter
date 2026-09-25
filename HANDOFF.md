@@ -1,6 +1,6 @@
 # HANDOFF — continuing wald as its author
 
-You are taking over the **author** role for wald. Read this whole file, then the signed pages in order (`CHARTER.md`, `SURFACE.md`, `CHARTER-v0.1.md`, `SURFACE-v0.1.md`, `CHARTER-v0.2.md`), then `laws/INTERFACE.md`. Nothing here overrides a signed page; where this file and a page disagree, the page is right and this file is stale.
+You are taking over the **author** role for wald. Read this whole file, then the signed pages in order (`CHARTER.md`, `SURFACE.md`, `CHARTER-v0.1.md`, `SURFACE-v0.1.md`, `CHARTER-v0.2.md`, `SURFACE-v0.2.md`), then `laws/INTERFACE.md` and `laws/model.py`. Nothing here overrides a signed page; where this file and a page disagree, the page is right and this file is stale.
 
 ## 1. What wald is, and why it exists
 
