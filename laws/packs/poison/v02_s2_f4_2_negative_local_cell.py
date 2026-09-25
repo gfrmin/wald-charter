@@ -1,4 +1,5 @@
 # expect: PRIOR
+# rule: V2.3
 # Appendix A with P(answer | 9/10) = (3/2, -1/2): the row sums to 1.
 world("appendix-a", closed=True)
 horizon(1, source="elicited")

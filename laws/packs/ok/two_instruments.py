@@ -1,4 +1,5 @@
 # Appendix H: two reliabilities, one swapped pair inseparable and disclosed; no After-act.
+# exercises: V2.4
 world("w", closed=True)
 horizon(2, source="elicited")
 depth(2, source="elicited")

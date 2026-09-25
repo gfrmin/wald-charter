@@ -1,4 +1,5 @@
 # An After-act in a World with no Global: it checks the model and learns nothing (session 1, 2.1).
+# exercises: V2.9
 # CHARTER v0.2 appendix A: the answer is local, the instrument's reliability persists. One graded episode is worth 9/100 on the next.
 world("appendix-a", closed=True)
 horizon(1, source="elicited")

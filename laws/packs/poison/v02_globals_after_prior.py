@@ -1,4 +1,5 @@
 # expect: MISSING
+# rule: V2.1
 # CHARTER v0.2 appendix A: the answer is local, the instrument's reliability persists. One graded episode is worth 9/100 on the next.
 world("appendix-a", closed=True)
 horizon(1, source="elicited")

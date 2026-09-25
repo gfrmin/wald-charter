@@ -1,4 +1,5 @@
 # CHARTER v0.2 appendix A: the answer is local, the instrument's reliability persists. One graded episode is worth 9/100 on the next.
+# exercises: V2.1, V2.2, V2.3, V2.4, V2.5, V2.12
 world("appendix-a", closed=True)
 horizon(1, source="elicited")
 depth(1, source="elicited")

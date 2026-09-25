@@ -1,4 +1,5 @@
 # expect: NOT_A_DECLARATION
+# rule: V2.6
 # Appendix A with `ask` returning two reports at once: v0's product of the rel-reliable report and a 4/5 one. One episode shipped.
 world("appendix-a", closed=True)
 horizon(1, source="elicited")

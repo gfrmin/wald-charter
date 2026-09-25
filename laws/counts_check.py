@@ -21,6 +21,10 @@ import argparse, hashlib, itertools, json, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spec_check import REF, Refused
 
+def refused(name, rule):
+    "a refusal carrying the rule of CHARTER v0.2 that makes it, for the traceability lint (laws/page_check.py)"
+    e = Refused(name); e.rule = rule; return e
+
 # ---------------------------------------------------------------- Part 1: the amendment
 def vals(dims): return [tuple(x) for x in itertools.product(*[v for _, v in dims])] if dims else [()]
 def skey(l, g): return ",".join(l) + "|" + ",".join(g)
@@ -59,7 +63,7 @@ def post_global(W, counts):
     for rec, n in counts.items():
         for g in w: w[g] *= record_lik(W, rec, g) ** n
     s = sum(w.values())
-    if s == 0: raise Refused("FALSIFIED")
+    if s == 0: raise refused("FALSIFIED", "C2.J26")
     return {g: v / s for g, v in w.items()}
 
 def episode_world(W, counts, prior=None):
@@ -196,15 +200,14 @@ def plate_value(W, T, counts=None, one_run=False):
     return go(w["prior"], w["N"], frozenset(), [])
 
 def loo_score(W, counts, falsifiers=()):
-    """S14, as CHARTER v0.2 signs it: for each copy of each record of the Counts, its likelihood under the Prior
-    conditioned on all the others - the other copies, the other records, and every falsifying record - multiplied
-    together; a rational. The falsifiers are conditioned on and have no term of their own (SURFACE v0.2 session 2, 4.3:
-    draft 3 gave them one, which the signed charter does not)."""
-    total = F(1)
-    for r, n in counts.items():
-        rest = Counter(counts); rest[r] -= 1
+    """S14 as corrected by ERRATA (CHARTER v0.2, entry 1): for each copy of each record of the Counts and for each
+    falsifying record, its likelihood under the Prior conditioned on all the others, multiplied together; a rational.
+    As signed, S14 gave the falsifying records no term, so data shipped as a falsifier moved the prior unscored
+    (SURFACE v0.2 session 3, 1.1)."""
+    allrec = counts + Counter(falsifiers); total = F(1)
+    for r, n in allrec.items():
+        rest = Counter(allrec); rest[r] -= 1
         if rest[r] == 0: del rest[r]
-        rest += Counter(falsifiers)
         pg = post_global(W, rest)
         total *= sum(pg[g] * record_lik(W, r, g) for g in pg) ** n
     return total
@@ -225,6 +228,7 @@ def realisable(W, rec_, falsifier=False):
     for i, (k, o) in enumerate(obs):
         if o in W["O"][k].get("ends", ()) and (i != len(obs) - 1 or t != f"end:{k}={o}"): return False
     if falsifier and t is None: return oa is None and len(obs) >= 1
+    if falsifier and oa is None: return False          # an episode that ended with no report after it falsified nothing (SURFACE v0.2 session 3, 1.1)
     if t not in ends_of(W): return False
     return (oa is not None) == bool(W.get("after")) or (falsifier and oa is not None and bool(W.get("after")))
 
@@ -244,23 +248,23 @@ def refuse(W):
     gs, ls = vals(W["globals"]), vals(W["locals"])
     for t, u in W["T"].items():                                        # S11: a Global is unpaid
         for l in ls:
-            if len({u[(l, g)] for g in gs if (l, g) in u}) > 1: raise Refused("GLOBAL")
+            if len({u[(l, g)] for g in gs if (l, g) in u}) > 1: raise refused("GLOBAL", "C2.S11")
     for k, sp in W["O"].items():                                       # S11: nor is an ending utility
         for o, ue in sp.get("u_end", {}).items():
             if isinstance(ue, dict):
                 for l in ls:
-                    if len({ue[(l, g)] for g in gs if (l, g) in ue}) > 1: raise Refused("GLOBAL")
+                    if len({ue[(l, g)] for g in gs if (l, g) in ue}) > 1: raise refused("GLOBAL", "C2.S11")
     if W.get("after"):                                                 # S12: one After-act, a kernel for exactly the ends
         supp = {(l, g) for g in gs for l, p in W["prior_local"][g].items() if p > 0 and W["prior_global"].get(g, 0) > 0}
         if set(W["after"]["K"]) != ends_of(W) or any(not supp <= set(W["after"]["K"][e]) for e in ends_of(W)):
-            raise Refused("AFTER")
-    if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise Refused("PRIOR")
+            raise refused("AFTER", "C2.S12")
+    if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise refused("PRIOR", "C2.J20")
     for g in gs:
-        if sum(W["prior_local"][g].values()) != 1: raise Refused("PRIOR")
+        if sum(W["prior_local"][g].values()) != 1: raise refused("PRIOR", "C2.J20")
     if W.get("counts") is not None or W.get("falsifiers"):             # S13, S14
         c, fs = W.get("counts", Counter()), tuple(W.get("falsifiers", ()))
-        if W.get("counts_sha") != counts_sha(c, fs) or not expressible(W, c, fs): raise Refused("PLATE")
-        if W.get("score") != loo_score(W, c, fs): raise Refused("UNSCORED")
+        if W.get("counts_sha") != counts_sha(c, fs) or not expressible(W, c, fs): raise refused("PLATE", "C2.S13")
+        if W.get("score") != loo_score(W, c, fs): raise refused("UNSCORED", "C2.S14")
     return W
 
 def seq_prob(W, g, draws, t):

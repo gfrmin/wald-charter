@@ -1,4 +1,5 @@
 # expect: PRIOR
+# rule: V2.2
 # K20: a zero cell in P(Global). v0 refuses a zero prior cell; K20's joint support just leaves its pairs out.
 world("zero-global", closed=True)
 horizon(1, source="elicited")

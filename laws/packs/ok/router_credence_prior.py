@@ -1,4 +1,5 @@
 # Credence's router with its prior: accepted, and S15 discloses the four classes the prior settles forever.
+# exercises: V2.2, V2.4
 world("w", closed=True)
 horizon(1, source="elicited")
 depth(1, source="elicited")

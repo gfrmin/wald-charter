@@ -1,4 +1,5 @@
 # expect: GLOBAL
+# rule: V2.10
 # The answer copies the Global (P(answer | rel) zero off the diagonal); the utility is spelt by('rel').
 world("diagonal", closed=True)
 horizon(1, source="elicited")

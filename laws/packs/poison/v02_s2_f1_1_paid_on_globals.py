@@ -1,4 +1,5 @@
 # expect: GLOBAL
+# rule: C2.S11
 # Two Globals that copy each other, and a utility that pays on them. No local copies either.
 world("paid-on-globals", closed=True)
 horizon(1, source="elicited")

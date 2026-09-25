@@ -1,4 +1,5 @@
 # expect: NOT_A_DECLARATION
+# rule: V2.14
 # CHARTER v0.2 appendix A: the answer is local, the instrument's reliability persists. One graded episode is worth 9/100 on the next.
 world("appendix-a", bottom=("a1", "3/5"))
 horizon(1, source="elicited")

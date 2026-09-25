@@ -1,4 +1,5 @@
 # expect: PLATE
+# rule: C2.S13
 # A plate learns its instrument lies (one wrong grade), then a right grade falsifies it.
 # Its Counts and falsifying record, shipped to the same declaration.
 world("liar", closed=True)

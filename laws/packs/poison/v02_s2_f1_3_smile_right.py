@@ -1,4 +1,5 @@
 # expect: NOT_A_DECLARATION
+# rule: V2.11
 # The grade reports a1 as U+1F600 and a2 as the surrogate pair spelt by escapes. Counts: one grade, U+1F600 written as itself.
 world("smile", closed=True)
 horizon(1, source="elicited")

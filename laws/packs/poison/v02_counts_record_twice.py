@@ -1,4 +1,5 @@
 # expect: DUPLICATE
+# rule: V2.6
 # CHARTER v0.2 appendix A, shipping one right grade (the next episode starts at (3/5, 2/5)): the answer is local, the instrument's reliability persists. One graded episode is worth 9/100 on the next.
 world("appendix-a", closed=True)
 horizon(1, source="elicited")

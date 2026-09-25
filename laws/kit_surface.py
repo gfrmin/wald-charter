@@ -24,7 +24,7 @@ def run_all(impl, seed, n_worlds):
         except refusals.Refused as e: return e.name, None
         except Exception as e: return f"raised {type(e).__name__}: {e}", None
     for fn in sorted(f for f in os.listdir(okd) if f.endswith(".py")):
-        text = open(os.path.join(okd, fn)).read(); want = R.check(text, {}, okd); name, got = verdict(text)
+        text = open(os.path.join(okd, fn), encoding="utf-8", newline="").read(); want = R.check(text, {}, okd); name, got = verdict(text)
         good = name == "ACCEPTED" and same(got, want); note = name if name != "ACCEPTED" else ("" if good else "elaborates to a different World")
         if good:
             try: world_m.declare(got)
@@ -32,7 +32,7 @@ def run_all(impl, seed, n_worlds):
         if good and surf.census(text, data_dir=okd) != R.census(text, {}, okd): good, note = False, "census differs"
         results.append((f"R3 {fn}", good, note))
     for fn in sorted(os.listdir(pod)):
-        text = open(os.path.join(pod, fn)).read(); want = {w.strip() for w in text.splitlines()[0].replace("# expect:", "").split("|")}
+        text = open(os.path.join(pod, fn), encoding="utf-8", newline="").read(); want = {w.strip() for w in text.splitlines()[0].replace("# expect:", "").split("|")}
         name, _ = verdict(text); results.append((f"R2 {fn}", name in want, f"got {name}, wanted {sorted(want)}"))
     rng = random.Random(seed); bad = None
     for i in range(n_worlds):
