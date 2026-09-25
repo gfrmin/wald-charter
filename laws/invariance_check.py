@@ -2,10 +2,13 @@
 invariance_check.py - a gate check for SURFACE v0.2 and CHARTER v0.2: every equivalence the theory respects leaves a
 lawful World lawful - with the same first act, the same value, the same belief over the original Globals - and leaves a
 refused World refused by the same name. The equivalences: renaming every name; padding with a one-valued local or Global
-component, and removing one; splitting a Global value into twins. Three refusal rules were beaten by exactly these
-re-spellings in attack sessions (S15's refusal and prior rules, SURFACE K19); this runs before any attack does.
+component, and removing one; splitting a Global value into twins; and (kit v0.13) a component value the prior does not
+name, which is not a state (QUESTIONS.md Q11). Three refusal rules were beaten by exactly these re-spellings in attack
+sessions (S15's refusal and prior rules, SURFACE K19); this runs before any attack does. Kit v0.13 adds the text around
+names: comments removed, moved or added, blank lines, a byte-order mark - each changes no pack's verdict, or changes
+every pack's to one refusal name (QUESTIONS.md Q16).
 """
-import os, random, sys
+import ast, os, random, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collections import Counter
 from fractions import Fraction as F
@@ -87,7 +90,8 @@ def twin(W):
 def verdict(W):
     try:
         C.refuse(W); SC.check(SC.to_pack_v02(W)); return "ok"
-    except (Refused, Exception) as e: return getattr(e, "name", None) or str(e).split(":")[0]
+    except (Refused, SC.Refused) as e: return getattr(e, "name", None) or str(e).split(":")[0]
+    except Exception as e: return f"raised {type(e).__name__}: {e}"
 
 def summary(W, back):
     "the first act, its value, and the belief over the original Globals, after the plate's evidence"
@@ -96,7 +100,21 @@ def summary(W, back):
     for g, p in C.post_global(W, C.evidence(W)).items(): pg[back(g)] += p
     return v, a, dict(pg)
 
-TRANSFORMS = [("rename", rename), ("rename with hostile characters", hostile), ("pad a local", pad_local), ("pad a Global", pad_global), ("remove a one-valued local", unpad), ("split a Global into twins", twin)]
+def unnamed_global(W):
+    """a value of the first Global component that P(Global) does not name: not a state (V2.3, V2.4; SURFACE v0 K10), so
+    nothing changes (QUESTIONS.md Q11)"""
+    if not W["globals"]: return None, None
+    (c, vs), *rest = W["globals"]
+    return remap(W, globals_=[(c, vs + [vs[0] + "~unnamed"])] + rest), (lambda g: g)
+
+def unnamed_local(W):
+    "a value of the first local component that no row of P(local | Global) names: not a state, so nothing changes"
+    if not W["locals"]: return None, None
+    (c, vs), *rest = W["locals"]
+    return remap(W, locals_=[(c, vs + [vs[0] + "~unnamed"])] + rest), (lambda g: g)
+
+TRANSFORMS = [("rename", rename), ("rename with hostile characters", hostile), ("pad a local", pad_local), ("pad a Global", pad_global), ("remove a one-valued local", unpad), ("split a Global into twins", twin),
+              ("a Global value the prior does not name", unnamed_global), ("a local value the prior does not name", unnamed_local)]
 
 def worlds():
     here = os.path.dirname(os.path.abspath(__file__)); out = []
@@ -120,26 +138,80 @@ def poisons():
     Wp = dict(A); c = Counter([C.rec("a1", "a1", "say a1")]); Wp["counts"] = c; Wp["counts_sha"] = "0" * 64; Wp["score"] = C.loo_score(A, c); out.append(("PLATE", Wp))
     return out
 
+# ---- kit v0.13: the text around names
+CODING = re.compile(r"^[ \t\f]*#.*?coding[:=][ \t]*([-\w.]+)", re.M)
+
+def _stmt_lines(text):
+    try: return sorted({st.lineno for st in ast.parse(text).body}), sorted({st.end_lineno for st in ast.parse(text).body})
+    except (SyntaxError, ValueError, UnicodeError): return None, None
+
+def text_transforms(text):
+    """(label, text) pairs that change only the text around names: comments, blank lines, a byte-order mark. A pack holding
+    anything a reader might take for a coding declaration is left out of the comment edits, since moving one line past
+    another changes whether it is one: which comment is a coding declaration is QUESTIONS.md Q16, for SURFACE v0.3."""
+    L = text.split("\n"); starts, ends = _stmt_lines(text)
+    comment = lambda l: l.lstrip(" \t").startswith("#")
+    if not CODING.search(text):
+        yield "comments removed", "\n".join(l for l in L if not comment(l))
+        yield "comments moved to the end", "\n".join([l for l in L if not comment(l)] + [l for l in L if comment(l)])
+    if starts:
+        yield "a comment line before every declaration", "\n".join(("# a comment\n" if i + 1 in starts else "") + l for i, l in enumerate(L))
+        yield "a blank line before every declaration", "\n".join(("\n" if i + 1 in starts else "") + l for i, l in enumerate(L))
+        yield "a comment after every declaration", "\n".join(l + ("  # a comment" if i + 1 in ends and not comment(l) else "") for i, l in enumerate(L))
+    yield "a byte-order mark", "\ufeff" + text
+
+def pack_verdict(text):
+    here = os.path.dirname(os.path.abspath(__file__)); okd = os.path.join(here, "packs/ok")
+    try: return ("ok", SC.check(text, {}, okd), SC.census(text, {}, okd))
+    except SC.Refused as e: return e.name
+    except Exception as e: return f"raised {type(e).__name__}"
+
+def text_invariance():
+    """the text around names changes no verdict, or changes every pack's to one refusal name: for each edit, either every
+    pack keeps its World, census or refusal, or every edited pack is refused by the same name (QUESTIONS.md Q16: which
+    name a byte-order mark gets is SURFACE v0.3's; that it gets one, whatever follows it, is not)"""
+    import mutations as MU
+    by, n = {}, 0
+    for name, text in MU.corpus():
+        before = pack_verdict(text)
+        for label, t in text_transforms(text):
+            n += 1; by.setdefault(label, []).append((name, before, pack_verdict(t)))
+    fails = []
+    for label, rows in by.items():
+        if all(a == b for _, a, b in rows): continue
+        after = {b if isinstance(b, str) else "a World" for _, _, b in rows}
+        if len(after) == 1 and not (after & {"a World"}) and not any(x.startswith("raised") for x in after): continue
+        changed = [(nm, a if isinstance(a, str) else "a World", b if isinstance(b, str) else "a World") for nm, a, b in rows if a != b]
+        fails.append(f"'{label}' changes {len(changed)} verdicts to {sorted(after)[:4]}; the first: {changed[0]}")
+    return n, fails
+
 def main():
     fails, n = [], 0
     for label, W in worlds():
         base = summary(W, lambda g: g)
         for tname, T in TRANSFORMS:
-            V, back = T(W)
-            if V is None: continue
-            n += 1; v = verdict(V)
-            if v != "ok": fails.append(f"{label}: '{tname}' turns a lawful World into one refused {v}"); continue
-            got = summary(V, back)
+            try:
+                V, back = T(W)
+                if V is None: continue
+                n += 1; v = verdict(V)
+                if v != "ok": fails.append(f"{label}: '{tname}' turns a lawful World into one refused {v}"); continue
+                got = summary(V, back)
+            except Exception as e: fails.append(f"{label}: '{tname}' makes the reference raise {type(e).__name__}: {e}"); continue
             if got[0] != base[0] or got[2] != base[2]: fails.append(f"{label}: '{tname}' changes the value or the belief ({base[0]} -> {got[0]})")
     for name, W in poisons():
         for tname, T in TRANSFORMS:
-            V, _ = T(W)
-            if V is None: continue
-            if name == "PLATE" and V.get("counts_sha"): V["counts_sha"] = "0" * 64      # keep the broken digest broken
-            n += 1; v = verdict(V)
+            try:
+                V, _ = T(W)
+                if V is None: continue
+                if name == "PLATE" and V.get("counts_sha"): V["counts_sha"] = "0" * 64      # keep the broken digest broken
+                n += 1; v = verdict(V)
+            except Exception as e: v = f"raised {type(e).__name__}: {e}"
             if v != name: fails.append(f"a World refused {name}: '{tname}' makes it {v}")
-    for f in fails[:12]: print("FAIL", f)
-    print(f"invariance: {n} transformed Worlds; " + ("INVARIANCE PASSES" if not fails else f"INVARIANCE FAILS ({len(fails)})"))
+    tn, tf = text_invariance(); n += tn; fails += tf
+    kinds = {}
+    for f in fails: kinds.setdefault(f.split("'")[1] if "'" in f else f[:40], []).append(f)
+    for k, fs in kinds.items(): print(f"FAIL {len(fs)} x  {fs[0][:230]}")
+    print(f"invariance: {n} transformed Worlds and packs; " + ("INVARIANCE PASSES" if not fails else f"INVARIANCE FAILS ({len(fails)})"))
     return not fails
 
 if __name__ == "__main__":

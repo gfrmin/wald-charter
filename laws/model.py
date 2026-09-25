@@ -33,15 +33,21 @@ class After(TypedDict, total=False):
     name: Name
 
 class World(TypedDict, total=False):
-    locals: List[Tuple[Name, List[Name]]]
+    locals: List[Tuple[Name, List[Name]]]         # the space's components and values; the prior may name fewer (Q11)
     globals: List[Tuple[Name, List[Name]]]
-    prior_global: Dict[Global, Fraction]
+    prior_global: Dict[Global, Fraction]          # the Global values P(Global) names: these, not the space's, are the Globals of Omega
     prior_local: Dict[Global, Dict[Local, Fraction]]
     T: Dict[Name, Dict[State, Fraction]]
     O: Dict[Name, Act]
     after: After
     N: int
     d: int
+    closed: bool
+    bottom: Union[Name, Tuple[Name, ...]]         # the catch-all state as the space spells it; only without Globals (V2.14)
+    dplus: int
+    fraction: Fraction
+    rate: Fraction
+    ops: Dict[int, Fraction]
     counts: Counter
     counts_sha: str
     score: Fraction
@@ -113,3 +119,70 @@ def check_world(W):
     for f in W.get("falsifiers", []): check_record(f, falsifier=True)
     if "score" in W: _prob(W["score"], "the Score")
     if "counts_sha" in W and not (isinstance(W["counts_sha"], str) and len(W["counts_sha"]) == 64): raise ShapeError("the digest is 64 hex characters")
+
+def omega(W) -> Set[State]:
+    "the states: the pairs (local, Global) to which P(Global) and P(local | Global) together give positive probability (V2.4)"
+    return {(l, g) for g, pg in W["prior_global"].items() if pg > 0 for l, pl in W["prior_local"].get(g, {}).items() if pl > 0}
+
+def ends_of(W) -> Set[Name]:
+    "every end: each terminal, and each ending outcome as end:act=outcome (V2.5, V2.6)"
+    return set(W["T"]) | {f"end:{k}={o}" for k, a in W["O"].items() for o in a.get("ends", ())}
+
+def _space(dims):
+    out = [()]
+    for _, vs in dims: out = [x + (v,) for x in out for v in vs]
+    return set(out)
+
+def _dist(row, what):
+    if any(p < 0 for p in row.values()) or sum(row.values()) != 1: raise ShapeError(f"{what} is a distribution: cells never negative, summing to 1")
+
+def _over(table, om, what):
+    if set(table) != om: raise ShapeError(f"{what} is keyed by exactly the states of Omega (V2.4): {len(set(table) - om)} beyond it, {len(om - set(table))} missing")
+
+def bottom_state(W) -> State:
+    "the catch-all as a state of Omega: without Globals, the whole state is the local (V2.14)"
+    b = W["bottom"]
+    return (b if isinstance(b, tuple) else (b,), ())
+
+def check_values(W):
+    """values, not only types (kit v0.13): every row a distribution, the After-act's included; every table over states keyed
+    by exactly Omega; the After-act's kernel keyed by exactly the ends; every price at least 0; a catch-all state gives every
+    outcome of every kernel positive mass, the After-act's included. A key written twice cannot be seen in a dict: that
+    half of the rule is `mutation_check.py`'s, which writes rows twice under two spellings of one key and asks for a refusal.
+    Raises ShapeError at the first departure. Call check_world first: this assumes its shapes."""
+    pg = W["prior_global"]
+    if any(p <= 0 for p in pg.values()) or sum(pg.values()) != 1: raise ShapeError("P(Global) is strictly positive and sums to 1 (V2.2)")
+    if set(W["prior_local"]) != set(pg): raise ShapeError("P(local | Global) has a row for exactly the Global values P(Global) names (V2.3)")
+    gspace, lspace = _space(W["globals"]), _space(W["locals"])
+    if not set(pg) <= gspace: raise ShapeError("P(Global) names a value outside the space (V2.2)")
+    for g, row in W["prior_local"].items():
+        _dist(row, f"P(local | {g!r})")
+        if not set(row) <= lspace: raise ShapeError(f"P(local | {g!r}) names a local value outside the space (V2.3)")
+    om = omega(W)
+    for t, u in W["T"].items(): _over(u, om, f"the utility of {t!r}")
+    for k, a in W["O"].items():
+        _over(a["K"], om, f"the kernel of {k!r}")
+        for s, row in a["K"].items(): _dist(row, f"the kernel of {k!r} at {s!r}")
+        if a["price"] < 0: raise ShapeError(f"the price of {k!r} is at least 0")
+        named = {o for row in a["K"].values() for o in row}
+        ends = set(a.get("ends", ()))
+        if not ends <= named: raise ShapeError(f"an ending outcome of {k!r} is one its kernel names")
+        if set(a.get("u_end", {})) != ends: raise ShapeError(f"{k!r} has an ending utility for exactly its ending outcomes")
+        for o, ue in a.get("u_end", {}).items(): _over(ue, om, f"the ending utility of {k!r} at {o!r}")
+    if W.get("after"):
+        A = W["after"]
+        if set(A["K"]) != ends_of(W): raise ShapeError("the After-act's kernel is keyed by exactly the ends (V2.5)")
+        for e, K in A["K"].items():
+            _over(K, om, f"the After-act's kernel at {e!r}")
+            for s, row in K.items(): _dist(row, f"the After-act's kernel at {e!r}, {s!r}")
+        if A["price"] < 0: raise ShapeError("the After-act's price is at least 0 (V2.5)")
+    if "bottom" in W and W["bottom"] is not None:
+        if W["globals"]: raise ShapeError("a catch-all state beside Globals is not sayable (V2.14)")
+        b = bottom_state(W)
+        if b not in om: raise ShapeError("the catch-all is a state of Omega")
+        for k, a in W["O"].items():
+            named = {o for row in a["K"].values() for o in row}
+            if any(a["K"][b].get(o, 0) <= 0 for o in named): raise ShapeError(f"the catch-all gives every outcome of {k!r} positive mass (S5)")
+        for e, K in (W["after"]["K"].items() if W.get("after") else ()):
+            named = {o for row in K.values() for o in row}
+            if any(K[b].get(o, 0) <= 0 for o in named): raise ShapeError(f"the catch-all gives every after-outcome under {e!r} positive mass (C2.S12)")

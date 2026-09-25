@@ -961,6 +961,39 @@ def paid_global_world():
     W = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
     W["T"]["say a1"][(("a1",), ("9/10",))] = F(2); return W
 
+def peek_world(drop=F(1, 2)):
+    """brief 007's Q8 and brief 008's Q14 and Q15: appendix A with a free `once` act `peek` whose outcome `drop` ends the
+    episode, N = 2, and an After-act row for the ending end. With drop = 0, `drop` is named and never has mass: a door that
+    reports it falsifies the World, and the falsifying report is an ending outcome (Q15)."""
+    W = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); ls, gs = vals(W["locals"]), vals(W["globals"])
+    W["O"]["peek"] = {"K": {(l, g): {"drop": drop, "go": 1 - drop} for l in ls for g in gs}, "price": F(0), "once": True,
+                      "ends": {"drop"}, "u_end": {"drop": {(l, g): F(0) for l in ls for g in gs}}}
+    W["N"] = 2; W["d"] = 2
+    W["after"]["K"]["end:peek=drop"] = {(l, g): {l[0]: F(1)} for l in ls for g in gs}
+    return W
+
+def ending_ask_world(drop):
+    """QUESTIONS.md Q15's shape: appendix A whose informative act `ask` also names an ending outcome `drop`, with mass `drop`
+    in every state, the rest reporting the answer with the reliability; an After-act row for end:ask=drop. The policy plays
+    `ask`, so the plate reaches the ending outcome; with drop = 0, a door that reports it falsifies the World at an ending
+    outcome, and the falsifying record is the prefix ((ask, drop),)."""
+    W = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); ls, gs = vals(W["locals"]), vals(W["globals"])
+    other = {"a1": "a2", "a2": "a1"}
+    W["O"]["ask"]["K"] = {(l, g): {l[0]: (1 - drop) * F(g[0]), other[l[0]]: (1 - drop) * (1 - F(g[0])), "drop": drop} for l in ls for g in gs}
+    W["O"]["ask"]["ends"] = {"drop"}; W["O"]["ask"]["u_end"] = {"drop": {(l, g): F(0) for l in ls for g in gs}}
+    W["after"]["K"]["end:ask=drop"] = {(l, g): {l[0]: F(1)} for l in ls for g in gs}
+    return W
+
+# the pinned Worlds of the appendices, the attack sessions and the builder's questions, which the gate checks run on
+PINNED = {"appendix A": lambda: reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)),
+          "the router": lambda: router_world(False), "honest ignorance": two_world, "the stakes": stakes_world,
+          "the held threshold": oscillating_world, "the railed act": railed_world, "the falsified refit": falsified_refit_world,
+          "the echoing grader": echo_world, "the colour": colour_world, "the confound": confounded_world,
+          "the grader a Global": grader_global_world, "the base rate": lambda: base_rate_world(F(0)), "C8 over a plate": lambda: w7a_world(2),
+          "the cap": lambda: cap_world(F(9, 10)), "twins": lambda: twin_world(F(1, 3), F(1, 6)),
+          "an ending outcome (Q8, Q14)": peek_world, "an ending outcome that never has mass": lambda: peek_world(F(0)),
+          "the informative act ends the episode": lambda: ending_ask_world(F(1, 5)), "the informative act's ending outcome never has mass (Q15)": lambda: ending_ask_world(F(0))}
+
 def run(impl, worlds, seed):
     rng = random.Random(seed); fails = {c: 0 for c, _ in CHECKS}; fails["REFUSE"] = 0
     for W, recs in worlds:
