@@ -10,6 +10,10 @@ L3  `wald.load_pack(text, data_dir)` elaborates a pack exactly as the reference 
 L4  the wire: `tools/serve.py` spoken to over stdin/stdout in JSON lines (API.md); the kit is the door at the other end
     and the result it receives equals the in-process one, refusals arrive by name, and an unknown op is a refusal not a
     crash.
+L5  kit v0.13 (brief 009): a host shipping Counts needs no kit. `wald.digest(counts, falsifiers)` is V2.13's digest;
+    `wald.score(world, counts, falsifiers)` is V2.8's Score written as a pack writes it, "p/q", however many digits;
+    `wald.e7(world, counts)` is E7's lines as a Display. A pack written from these alone - the refit of attack session 5,
+    and appendix A shipping 300 records, whose Score has tens of thousands of digits - loads and declares.
 Every rational on the wire is a string "p/q"; every message one JSON object per line.
 """
 import argparse, importlib, json, os, subprocess, sys
@@ -60,10 +64,14 @@ def main(impl, seed=1):
         wald = importlib.import_module("wald")
     except Exception as e:
         print("FAIL L1: import wald:", type(e).__name__, e); return False
-    names = ["declare", "run", "Door", "report", "Display", "refusals", "load_pack", "from_json", "to_json", "law"]
+    import types
+    names = ["declare", "run", "Door", "report", "Display", "refusals", "load_pack", "from_json", "to_json", "law", "plate"]
     check("L1 wald exposes " + ", ".join(names), all(hasattr(wald, n) for n in names), f"missing {[n for n in names if not hasattr(wald, n)]}")
     if not all(hasattr(wald, n) for n in names):
         return report(results)
+    # kit v0.13: three functions, callable - not submodules that happen to be imported by then (kit v0.13 found `wald.digest` so)
+    fns = ["digest", "score", "e7"]; lack = [n for n in fns if not callable(getattr(wald, n, None)) or isinstance(getattr(wald, n, None), types.ModuleType)]
+    check("L1 wald exposes the functions digest, score, e7 (kit v0.13)", not lack, f"not functions of wald: {lack}")
     law = wald.law
     check("L1 wald.law names the newest signed pages, charter-v0.2 and surface-v0.2, and the kit tag of the lock (brief 007, Q7)", law.get("charter") == "charter-v0.2" and law.get("surface") == "surface-v0.2" and law.get("kit") == lock_tags(impl).get("kit"), f"got {law}, lock {lock_tags(impl)}")
     # L2: appendix A and B through the wire spec and a scripted door
@@ -81,6 +89,9 @@ def main(impl, seed=1):
     okd = os.path.join(HERE, "packs", "ok"); text = open(os.path.join(okd, "appendix_think.py")).read()
     got = wald.load_pack(text, okd); ref = R.check(text, {}, okd)
     check("L3 load_pack elaborates appendix_think.py as the reference does", all(got.get(k) == ref.get(k) for k in ("prior", "T", "O", "N", "d", "dplus", "fraction", "rate", "ops")), "differs")
+    # L5: a host shipping Counts needs no kit (kit v0.13)
+    if not lack: _l5(wald, check)
+    else: check("L5 a host shipping Counts needs no kit", False, "wald.digest, wald.score and wald.e7 are not all functions")
     # L4: the wire
     root = os.path.dirname(os.path.abspath(impl)); serve = os.path.join(root, "tools", "serve.py")
     if not os.path.exists(serve):
@@ -119,6 +130,58 @@ def main(impl, seed=1):
         try: p.stdin.close(); p.wait(timeout=5)
         except Exception: p.kill()
     return report(results)
+
+def shipped_text(bare, counts, falsifiers, sha, score):
+    "a pack that ships Counts, written from a bare pack and the host's own values - the digest and Score as text"
+    rows = ", ".join("[" + repr([list(x) for x in o]) + f", {t!r}, {a!r}, {n}]" for (o, t, a), n in counts.items())
+    L = [bare.rstrip("\n"), f'counts([{rows}], sha256={sha!r}, source="data")']
+    if falsifiers: L.append("falsifiers([" + ", ".join("[" + repr([list(x) for x in o]) + f", {t!r}, {a!r}]" for o, t, a in falsifiers) + "])")
+    L.append(f'score({score}, of="counts", source="data")')
+    return "\n".join(L) + "\n"
+
+def _l5(wald, check):
+    import counts_check as C, encoding_check as EC, random
+    from collections import Counter
+    okd = os.path.join(HERE, "packs", "ok")
+    try:
+        # the digest: V2.13's five vectors
+        cases = [(Counter([((("ask", "a1"),), "say a1", "a1")]), []), (Counter({((("ask", "a1"),), "abstain", None): 2}), []),
+                 (Counter([((("ask", "é"),), "say é", "é")]), []), (Counter([((("ask", "a1"),), "say a1", "a1")]), [((("ask", "a3"),), None, None)]),
+                 (Counter([((("ask", "a/b\t"),), "say a1", "a1")]), [])]
+        vec = [d for _, d in EC.page_vectors(os.path.join(HERE, "..", "SURFACE-v0.2.md"))]
+        got = [wald.digest(c, f) for c, f in cases]
+        check("L5 wald.digest gives V2.13's five vectors", got == vec, f"got {[str(g)[:12] for g in got]}")
+        # the Score, and a pack written from the host's values alone: the refit of attack session 5
+        full = open(os.path.join(okd, "refit_scored_falsifier.py"), encoding="utf-8", newline="").read()
+        bare = "\n".join(l for l in full.split("\n") if not l.startswith(("counts(", "falsifiers(", "score(")))
+        ref = R.check(full, {}, okd); world = wald.declare(wald.load_pack(bare, okd))
+        sc = wald.score(world, ref["counts"], ref["falsifiers"])
+        check("L5 wald.score gives the refit's Score as a pack writes it: 363/10000", sc == "363/10000", f"got {sc!r}")
+        text = shipped_text(bare, ref["counts"], ref["falsifiers"], wald.digest(ref["counts"], ref["falsifiers"]), sc)
+        w2 = wald.load_pack(text, okd); wald.declare(w2)
+        check("L5 the refit, written from wald.digest and wald.score alone, loads and declares", w2.get("score") == F(363, 10000), f"score {w2.get('score')}")
+        # a Score of tens of thousands of digits
+        A = open(os.path.join(okd, "appendix_a.py"), encoding="utf-8", newline="").read(); worldA = wald.declare(wald.load_pack(A, okd))
+        rng = random.Random(1); recs = Counter()
+        for _ in range(300):
+            a_ = rng.choice(["a1", "a2"]); recs[((("ask", a_),), "say " + a_, a_ if rng.random() < 0.8 else {"a1": "a2", "a2": "a1"}[a_])] += 1
+        want = R.q(C.loo_score(R.check(A, {}, okd), recs)); limit = sys.get_int_max_str_digits()
+        sc = wald.score(worldA, recs, ())
+        check(f"L5 wald.score writes a Score of {len(want.split('/')[1])} digits exactly", sc == want, f"got {len(str(sc))} characters")
+        w3 = wald.load_pack(shipped_text(A, recs, [], wald.digest(recs, []), sc), okd); wald.declare(w3)
+        check("L5 that pack loads and declares, and Python's limit on integer conversion is untouched", sys.get_int_max_str_digits() == limit and R.q(w3["score"]) == want, "")
+        # E7 as a Display
+        G = C.reliability_world([F(1, 2), F(9, 10)], [F(1, 2), F(1, 2)], F(-2))
+        g1 = Counter({C.rec("a1", "a1", "say a1"): 99, C.rec("a2", "a2", "say a2"): 99, C.rec("a1", "a2", "say a1"): 1, C.rec("a2", "a1", "say a2"): 1})
+        worldG = wald.declare(wald.load_pack(R.to_pack_v02(G), okd)); d = wald.e7(worldG, g1)
+        inert = isinstance(d, wald.Display)
+        try: d == d; inert = False
+        except TypeError: pass
+        text_ = str(d); lines = C.diagnostic(G, g1)
+        check("L5 wald.e7 is a Display - inert, S1 - whose text holds every line of E7 as an exact rational (the degenerate label)",
+              inert and all(R.q(v) in text_ for v in lines.values()), f"inert {inert}; {text_[:120]!r}")
+    except Exception as e:
+        check("L5 a host shipping Counts needs no kit", False, f"{type(e).__name__}: {str(e)[:200]}")
 
 def report(results):
     for tag, good, note in results:

@@ -19,6 +19,7 @@ CHECKS = [
     ("realisability is v0's loop", ["realise_check.py"]),
     ("what the reference plate writes, the reference reads back", ["roundtrip_check.py"]),
     ("the kit's counts judge, stand-in", ["kit_counts.py", "--standin"]),
+    ("the kit's surface judge, stand-in", ["kit_surface.py", "--standin"]),
 ]
 def main():
     t = time.time()

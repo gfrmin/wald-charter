@@ -16,6 +16,12 @@ K7  kit v0.12: the adapter's shapes are model.py's; its digest is V2.13's on the
     Score scores the falsifying records (V2.8), accepting the refit of attack session 5 at 363/10000 and refusing both of
     signed S14's readings UNSCORED; a full record with no after-report is no falsifier (V2.7, PLATE); a prefix falsifier
     is shippable (V2.7).
+K8  kit v0.13 (brief 008's questions): a Global value the prior does not name is no state (Q11); a record whose ending end
+    its draws never reach is refused PLATE (Q14); a prefix falsifier ending at an ending outcome ships (Q15); an ending
+    outcome ends the episode - the public plate records end:act=outcome, and a zero-mass one falsifies at a prefix.
+K9  kit v0.13: what the implementation's plate writes, it reads back: on the pinned Worlds, for every door answer, each
+    record and falsifier is realisable in its own declaration, a plate's Counts ship into that declaration, and a
+    falsified plate's Counts and falsifier ship into a refit with the same mechanics (laws/roundtrip_check.py's rule).
 K6  the public plate: `wald.plate(world)`, on the World the adapter builds from the dict, played against a scripted door,
     carries Counts from episode to episode - appendix
     A's two episodes, its acts, its Counts - and ends WORLD_FALSIFIED on a report of probability zero, the falsifying
@@ -48,7 +54,9 @@ def pinned_worlds():
            (C.two_world(), [((("ask", "a1"), ("check", "a1")), "say a1", None)] * 3),
            (C.base_rate_world(F(0)), [((("ask", "a2"),), "say a2", None)] * 3),
            (C.falsified_refit_world(), [C.rec("a1", "a1", "say a1"), C.rec("a2", "a2", "say a2")]),
-           (C.stakes_world(), [])]
+           (C.stakes_world(), []),
+           (C.ending_ask_world(F(1, 5)), [((("ask", "drop"),), "end:ask=drop", "a1"), C.rec("a1", "a1", "say a1")]),     # kit v0.13
+           (C.peek_world(), [((("peek", "go"), ("ask", "a1")), "say a1", "a1")])]
     lw = C.levels_world(); out.append((lw, []))
     return out
 
@@ -150,8 +158,10 @@ def main(impl, seed, adapter=None, wald=None, quiet=False):
     check("K5 the Score is the leave-one-out predictive probability: 1125/100672", _safe_call(adapter.score, A3, c3) == F(1125, 100672))
     # K7
     _k7(adapter, check)
+    # K8, K9 (kit v0.13)
+    _k8(adapter, check)
     # K6
-    if wald is not None: _public_plate(wald, adapter, check)
+    if wald is not None: _public_plate(wald, adapter, check); _k8_plate(wald, adapter, check); _k9(wald, adapter, check)
     for tag, good, note in results:
         if not good: say(f"FAIL {tag}   {note}")
     say(f"counts: {sum(g for _, g, _ in results)}/{len(results)} pass")
@@ -197,6 +207,82 @@ def _k7(adapter, check):
     Wp = SC.check(open(os.path.join(here, "packs/ok/prefix_falsifier.py"), encoding="utf-8", newline="").read(), {}, os.path.join(here, "packs/ok"))
     try: adapter.declare(Wp); check("K7 a prefix falsifier is shippable (V2.7)", True)
     except Exception as e: check("K7 a prefix falsifier is shippable (V2.7)", False, f"refused {e}")
+
+def _shipped(W, counts, falsifiers=()):
+    V = {k: v for k, v in W.items() if k not in ("counts", "counts_sha", "score", "falsifiers")}
+    V["counts"] = Counter(counts); V["counts_sha"] = C.counts_sha(V["counts"], falsifiers)
+    if falsifiers: V["falsifiers"] = list(falsifiers)
+    V["score"] = C.loo_score(V, V["counts"], falsifiers) if C.expressible(V, V["counts"], falsifiers) else F(1)
+    return V
+
+def _declares(adapter, W):
+    try: adapter.declare(W); return "accepted"
+    except Exception as e: return getattr(e, "name", None) or (str(e).split(":")[0] if type(e).__name__ == "Refused" else f"{type(e).__name__}: {e}")
+
+def _k8(adapter, check):
+    A = C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2))
+    U = dict(A, globals=[("rel", ["9/10", "3/5", "1/2"])]); recs = [C.rec("a1", "a1", "say a1")]
+    got = _safe_call(adapter.prior, U, recs); want = {C.unkey(k): v for k, v in C.episode_world(U, Counter(recs))["prior"].items()}
+    check("K8 a Global value the prior does not name is no state: accepted, and the prior is appendix A's (Q11)",
+          _declares(adapter, U) == "accepted" and got == want, f"declare: {_declares(adapter, U)}; prior {str(got)[:80]}")
+    P = C.peek_world()
+    v = _declares(adapter, _shipped(P, {((), "end:peek=drop", "a1"): 1}))
+    check("K8 a record whose ending end its draws never reach is refused PLATE (Q14)", v == "PLATE", f"got {v}")
+    E = C.ending_ask_world(F(1, 5)); pre = ((("ask", "drop"),), None, None)
+    v = _declares(adapter, _shipped(E, {((("ask", "a1"),), "say a1", "a1"): 1}, [pre]))
+    check("K8 a prefix falsifier whose falsifying report is an ending outcome ships (Q15, V2.7)", v == "accepted", f"got {v}")
+
+def _k8_plate(wald, adapter, check):
+    try:
+        pl = wald.plate(adapter.world(C.ending_ask_world(F(1, 5))))
+        r = pl.run(_Door(wald, ["drop", "a1"]).make())
+        rec_ = ((("ask", "drop"),), "end:ask=drop", "a1")
+        check("K8 an ending outcome ends the episode: the plate records end:ask=drop and its after-report", dict(pl.counts()) == {rec_: 1} and pl.falsifier() is None,
+              f"got {dict(pl.counts())}, {pl.falsifier()}, status {getattr(r, 'status', None)}")
+        pz = wald.plate(adapter.world(C.ending_ask_world(F(0))))
+        rz = pz.run(_Door(wald, ["drop"]).make())
+        check("K8 a zero-mass ending outcome falsifies at a prefix: ((ask, drop),), no end, no after-report (J26, Q15)",
+              "FALSIFIED" in str(rz.status) and pz.falsifier() == ((("ask", "drop"),), None, None) and dict(pz.counts()) == {},
+              f"got {rz.status}, {pz.falsifier()}, {dict(pz.counts())}")
+    except Exception as e:
+        check("K8 the public plate at an ending outcome", False, f"{type(e).__name__}: {e}")
+
+def _k9(wald, adapter, check):
+    "the round trip through the implementation's own plate (laws/roundtrip_check.py's rule)"
+    import roundtrip_check as RT
+    class Need(Exception): pass
+    bad, n = [], 0
+    for label, maker in C.PINNED.items():
+        W = maker()
+        if "dplus" in W: continue
+        after = W["after"].get("name", "after") if W.get("after") else None
+        def run(script):
+            nonlocal n
+            pl = wald.plate(adapter.world(W)); it = iter(script); seen = {"end": None, "last": None}
+            class D(wald.Door):
+                def outcome(self, act):
+                    end = None
+                    if act == after and (seen["end"] is not None or seen["last"] is not None):
+                        k, o = seen["last"] or (None, None); end = seen["end"] if seen["end"] is not None else f"end:{k}={o}"
+                    try: o = next(it)
+                    except StopIteration: raise Need((act, end))
+                    if end is None: seen["last"] = (act, o)
+                    return o
+                def fire(self, act): seen["end"] = act
+            try: pl.run(D())
+            except Need as e:
+                act, end = e.args[0]
+                for o in RT.named(W, act, end): run(script + [o])
+                return
+            n += 1; counts, f = pl.counts(), pl.falsifier()
+            if any(not C.realisable(W, r) for r in counts): bad.append(f"{label}: writes {dict(counts)}, which its declaration could not have written"); return
+            if f is not None and not C.realisable(W, tuple(f), True): bad.append(f"{label}: writes the falsifier {f}, which its declaration could not have written"); return
+            V = _shipped(W, counts) if f is None else _shipped(RT.refit(W), counts, list(W.get("falsifiers", ())) + [tuple(f)])
+            v = _declares(adapter, V)
+            if v != "accepted": bad.append(f"{label}: {dict(counts)}, {f} - {'its own declaration' if f is None else 'a refit'} refuses them {v}")
+        try: run([])
+        except Exception as e: bad.append(f"{label}: raised {type(e).__name__}: {e}")
+    check(f"K9 what the implementation's plate writes it reads back: {n} plates on the pinned Worlds", not bad, bad[0] if bad else "")
 
 def _world_of(text):
     "the World a poison pack would declare, the charter's refusal switched off, so the kernel's own refusal is judged"

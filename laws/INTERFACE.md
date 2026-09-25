@@ -100,3 +100,19 @@ Deferred to brief 002, because they need the surface syntax: unhoused numerals a
 - **Falsifying records.** A prefix `(draws, None, None)` is shippable; a full record with no after-report is refused PLATE (V2.7).
 - **`wald.law`** is `{"charter": "charter-v0.2", "surface": "surface-v0.2", "kit": <the lock's tag>}` (brief 007, Q7).
 
+
+## Brief 008's questions, and shipping Counts without the kit (kit v0.13, under the same signed pages)
+
+No page changes. Kit v0.13 corrects the reference where the builder's questions Q10–Q17 of brief 008 showed it wrong or silent, pins each correction in the corpus, and adds the five gate checks that would have found each class (`laws/mutation_check.py`, `model.py`'s `check_values`, `laws/realise_check.py`, `laws/roundtrip_check.py`, and two invariances in `laws/invariance_check.py`).
+
+- **The reference, corrected.** The After-act's kernel is a table like any other: every row a distribution (KERNEL_ROW), keyed by exactly the states (TABLE_SHAPE), one row per end however the end is spelt (DUPLICATE), its price at least 0 (PRICE), and at a catch-all state every after-outcome has mass (AFTER) — Q10a–e. A Global value the prior does not name is no state (Q11). A Score of Counts in a pack with no Counts is MISSING on every route (Q12). Falsifying records may come before their Counts (Q13). Realisability is v0's loop: an ending end is reached by drawing its ending outcome last (Q14), and a prefix falsifier may end at an ending outcome, since the loop checks zero mass first (Q15). Malformed packs are refused by name, never by an exception (Q17). And, beyond the questions: an episode ends at an ending outcome, as v0 §2 says. The reference's episode World had dropped every act's ending outcomes, so its plate and plate values ran past them.
+- **The reference plate** is `counts_check.Plate` (formerly `kit_counts._RefWald`). Each episode's prior conditions on the Counts and falsifying records the declaration ships and on the records the plate has written. An ending outcome ends the episode, and `Result.status` is then `ENDED`. A run after the plate was falsified is refused.
+- **Long literals.** A pack's numbers may have any number of digits. A reader reads them without lifting Python's interpreter-wide limit on integer conversion (4,300 digits by default): a Score of 300 records has tens of thousands.
+- **`wald.__all__`** gains three names, fourteen in all (ST1):
+  - `wald.digest(counts, falsifiers=()) -> str`: V2.13's digest, as the adapter's `digest` gives it.
+  - `wald.score(world, counts, falsifiers=()) -> str`: V2.8's Score for a World as `wald.declare` returns it, written as a pack writes the cell — `"p/q"`, or the integer when q is 1 — in decimal digits, however many.
+  - `wald.e7(world, counts) -> Display`: E7's lines, one per draw grouped by its history, as inert text (S1) that holds each line's exact rational.
+
+  With these, a host that plays a plate writes the pack that ships its Counts itself: `counts(…)` from `Plate.counts()`, `falsifiers(…)` from `Plate.falsifier()`, the `sha256` from `wald.digest`, and `score(…)` from `wald.score`. The Score and the digest are a name and a measurement a pack writes, not beliefs a host acts on.
+- **Judged by** R9–R10 (`kit_surface.py`), K8–K9 (`kit_counts.py`), L5 (`kit_library.py`), and ST1. R10 compares the implementation's verdict with the reference's on a sample of the corpus's mutations, chosen by the kit's seed: the same World and census where the reference accepts, a refusal by any name where it refuses (a mutation may break several rules, SURFACE K7), and never another exception. R3 now compares a v0.2 World whole; kit v0.12 compared only the v0 keys.
+- **Not pinned**, because the pages are silent and SURFACE v0.3 is to decide: which name a byte-order mark gets, and which comment is a coding declaration (Q16); After-act outcomes written as tuples (Q10f).

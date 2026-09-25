@@ -10,7 +10,8 @@ from fractions import Fraction as F
 
 ALLOWED_TOP = {"declare", "run", "Door", "report", "Display", "refusals",          # kit v0.1
                "load_pack", "from_json", "to_json", "law",                           # kit v0.10 (brief 006, Q5)
-               "plate"}                                                              # kit v0.11 (CHARTER v0.2)
+               "plate",                                                              # kit v0.11 (CHARTER v0.2)
+               "digest", "score", "e7"}                                              # kit v0.13 (brief 009)
 SRC = {"prior": "data", "utility": "elicited", "price": "elicited", "horizon": "elicited", "depth": "elicited"}
 
 def spec(prior, T, O, N=1, d=1, **kw):
