@@ -21,6 +21,10 @@ import argparse, hashlib, itertools, json, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spec_check import REF, Refused
 
+def refused(name, rule):
+    "a refusal carrying the rule of CHARTER v0.2 that makes it, for the traceability lint (laws/page_check.py)"
+    e = Refused(name); e.rule = rule; return e
+
 # ---------------------------------------------------------------- Part 1: the amendment
 def vals(dims): return [tuple(x) for x in itertools.product(*[v for _, v in dims])] if dims else [()]
 def skey(l, g): return ",".join(l) + "|" + ",".join(g)
@@ -28,9 +32,20 @@ def unkey(s):
     l, g = s.split("|"); return (tuple(l.split(",")) if l else ()), (tuple(g.split(",")) if g else ())
 def strK(K): return {skey(l, g): row for (l, g), row in K.items()}
 
-def counts_sha(counts):
-    rows = sorted([[[list(x) for x in obs], t, oa, n] for (obs, t, oa), n in counts.items()], key=json.dumps)
-    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
+def counts_sha(counts, falsifiers=()):
+    """SURFACE v0.2 section 3 (draft 3): SHA-256, lowercase hex, of the compact JSON array [counts, falsifiers] -
+    counts the array of the distinct records [draws, end, after, n], falsifiers the array of the falsifying records
+    [draws, end, after] (end and after null for a report inside an episode), each array sorted by its elements' own
+    compact JSON; no whitespace, the short escapes \\" \\\\ \\b \\f \\n \\r \\t, other control characters and every
+    non-ASCII character as \\u and four lowercase hex digits, DEL and / written raw. Names hold no lone surrogate."""
+    enc = lambda x: json.dumps(x, separators=(",", ":"), ensure_ascii=True)
+    rows = sorted(enc([[list(x) for x in obs], t, oa, n]) for (obs, t, oa), n in counts.items())
+    fal = sorted(enc([[list(x) for x in obs], t, oa]) for (obs, t, oa) in falsifiers)
+    return hashlib.sha256(("[[" + ",".join(rows) + "],[" + ",".join(fal) + "]]").encode("utf-8")).hexdigest()
+
+def evidence(W):
+    "everything a plate's prior conditions on: the shipped Counts and their falsifying records (S13, J26)"
+    return W.get("counts", Counter()) + Counter(W.get("falsifiers", ()))
 
 def record_lik(W, rec, g):
     "P(this episode's reports and after-report | Global g): the local state is summed out under P(local | g)"
@@ -38,7 +53,7 @@ def record_lik(W, rec, g):
     for l, pl in W["prior_local"][g].items():
         p = pl
         for k, o in obs: p *= W["O"][k]["K"][(l, g)].get(o, F(0))
-        if oa is not None: p *= W["after"]["K"][t][(l, g)].get(oa, F(0))
+        if oa is not None and t is not None: p *= W["after"]["K"][t][(l, g)].get(oa, F(0))
         tot += p
     return tot
 
@@ -48,7 +63,7 @@ def post_global(W, counts):
     for rec, n in counts.items():
         for g in w: w[g] *= record_lik(W, rec, g) ** n
     s = sum(w.values())
-    if s == 0: raise Refused("FALSIFIED")
+    if s == 0: raise refused("FALSIFIED", "C2.J26")
     return {g: v / s for g, v in w.items()}
 
 def episode_world(W, counts, prior=None):
@@ -73,18 +88,27 @@ def designs(W):
     grow([], frozenset(), W["N"])
     return out
 
+def _walk(W, l, g, seq):
+    "the draws of a fixed design from state (l, g), stopping at an ending outcome (Q8): yields (outcomes, end or None, p)"
+    def go(i, p, outs):
+        if i == len(seq): yield outs, None, p; return
+        k = seq[i]
+        for o, q in W["O"][k]["K"][(l, g)].items():
+            if q == 0: continue
+            if o in W["O"][k].get("ends", ()): yield outs + (o,), f"end:{k}={o}", p * q
+            else: yield from go(i + 1, p * q, outs + (o,))
+    yield from go(0, F(1), ())
+
 def design_dist(W, g, seq, t):
-    "the law of a design's outcomes and the after-report under end t, the local summed out under P(local | g)"
+    "the law of a design's outcomes, its end and the after-report under end t, the local summed out under P(local | g)"
     dist, after = {}, W.get("after")
     for l, pl in W["prior_local"][g].items():
         if pl == 0: continue
-        rows = [list(W["O"][k]["K"][(l, g)].items()) for k in seq]
-        arow = after["K"][t][(l, g)] if (after and t is not None) else {None: F(1)}
-        for combo in itertools.product(*rows):
-            p = pl
-            for _, q in combo: p *= q
+        for outs, e, p in _walk(W, l, g, seq):
+            end = e or t
+            arow = after["K"][end][(l, g)] if (after and end is not None) else {None: F(1)}
             for oa, qa in arow.items():
-                key = (tuple(o for o, _ in combo), oa); dist[key] = dist.get(key, F(0)) + p * qa
+                key = (outs, e, oa); dist[key] = dist.get(key, F(0)) + pl * p * qa
     return frozenset((k, v) for k, v in dist.items() if v)
 
 def classes(W):
@@ -110,24 +134,19 @@ def paid_part(W, l, g):
         best = max(W["T"][t][(l, g)] for t in ts)
         for k, sp in W["O"].items():
             for o, ue in sp.get("u_end", {}).items():
-                if sp["K"][(l, g)].get(o, F(0)) > 0: best = max(best, ue)
+                if sp["K"][(l, g)].get(o, F(0)) > 0: best = max(best, ue[(l, g)] if isinstance(ue, dict) else ue)
         part += (best,)
     return part
 
 def joint_dist(W, g, seq, t):
-    """the joint law of what an act can feel of the state with a design's draws, under g. The after-report is left
-    out: no act reads it, and within a class it cannot move the split (session 6, 3.2). Session 5, 3.1: a class that
-    disagrees only about what no act can feel settles nothing and is not listed."""
-    dist, after = {}, W.get("after")
-    for l0, pl in W["prior_local"][g].items():
+    """the joint law of what an act can feel of the state with a design's draws, under g; the after-report left out
+    (session 6, 3.2); a design stops at an ending outcome (Q8)"""
+    dist = {}
+    for l, pl in W["prior_local"][g].items():
         if pl == 0: continue
-        l = l0; lk = paid_part(W, l0, g)
-        rows = [list(W["O"][k]["K"][(l, g)].items()) for k in seq]
-        arow = after["K"][t][(l, g)] if (after and t is not None) else {None: F(1)}
-        for combo in itertools.product(*rows):
-            p = pl
-            for _, q in combo: p *= q
-            key = (lk, tuple(o for o, _ in combo)); dist[key] = dist.get(key, F(0)) + p
+        lk = paid_part(W, l, g)
+        for outs, e, p in _walk(W, l, g, seq):
+            key = (lk, outs, e); dist[key] = dist.get(key, F(0)) + pl * p
     return frozenset((k, v) for k, v in dist.items() if v)
 
 def unwashable(W):
@@ -180,37 +199,44 @@ def plate_value(W, T, counts=None, one_run=False):
         return v
     return go(w["prior"], w["N"], frozenset(), [])
 
-def loo_score(W, counts):
-    """S14 as of draft 9: the leave-one-out predictive probability of the shipped records - each copy's predictive
-    given all the others - a rational, so a table can hold it (session 3, 6.1: a log score is irrational)."""
-    total = F(1)
-    for r, n in counts.items():
-        rest = Counter(counts); rest[r] -= 1
+def loo_score(W, counts, falsifiers=()):
+    """S14 as corrected by ERRATA (CHARTER v0.2, entry 1): for each copy of each record of the Counts and for each
+    falsifying record, its likelihood under the Prior conditioned on all the others, multiplied together; a rational.
+    As signed, S14 gave the falsifying records no term, so data shipped as a falsifier moved the prior unscored
+    (SURFACE v0.2 session 3, 1.1)."""
+    allrec = counts + Counter(falsifiers); total = F(1)
+    for r, n in allrec.items():
+        rest = Counter(allrec); rest[r] -= 1
         if rest[r] == 0: del rest[r]
         pg = post_global(W, rest)
         total *= sum(pg[g] * record_lik(W, r, g) for g in pg) ** n
     return total
 
-def realisable(W, rec_):
-    """a record an episode of this declaration can produce under v0's loop, whatever its policy (session 5, 1.1: the
-    kernel's policy is not consulted - a refit that raised a price may condition on records it would no longer write):
-    its acts declared, at most N draws, each `once` act at most once, an ending outcome only as the last draw and then
-    as the end, an after-report exactly when an After-act is declared"""
+def ends_of(W):
+    "every end: each terminal, and each ending outcome as end:act=outcome (CHARTER v0.2 section 3; Q8 of brief 007)"
+    return set(W["T"]) | {f"end:{k}={o}" for k, sp in W["O"].items() for o in sp.get("ends", ())}
+
+def realisable(W, rec_, falsifier=False):
+    """a record an episode of this declaration can produce under v0's loop, whatever its policy (the kernel's policy
+    is not consulted): its acts declared, at most N draws, each `once` act at most once, an ending outcome only as
+    the last draw and then as the end, an after-report exactly when an After-act is declared. A falsifier may also be
+    a prefix - draws up to the report that falsified the World inside the episode, with no end (Q9 of brief 007)."""
     obs, t, oa = rec_
     acts = [k for k, _ in obs]
     if len(acts) > W["N"] or any(k not in W["O"] for k in acts): return False
-    for i, (k, o) in enumerate(obs):                        # an ending outcome is the last draw, and then the end
-        if o in W["O"][k].get("ends", ()):
-            if i != len(obs) - 1 or t != f"end:{k}={o}": return False
-    if t not in W["T"] and not (obs and t == f"end:{obs[-1][0]}={obs[-1][1]}"): return False
     if any(W["O"][k]["once"] and acts.count(k) > 1 for k in set(acts)): return False
-    return (oa is not None) == bool(W.get("after"))
+    for i, (k, o) in enumerate(obs):
+        if o in W["O"][k].get("ends", ()) and (i != len(obs) - 1 or t != f"end:{k}={o}"): return False
+    if falsifier and t is None: return oa is None and len(obs) >= 1
+    if falsifier and oa is None: return False          # an episode that ended with no report after it falsified nothing (SURFACE v0.2 session 3, 1.1)
+    if t not in ends_of(W): return False
+    return (oa is not None) == bool(W.get("after")) or (falsifier and oa is not None and bool(W.get("after")))
 
-def expressible(W, counts):
-    """session 4, 1.1 and 5.1: every shipped record realisable here, and the whole multiset possible under some Global
-    value. Session 6, 5.1: a falsifying record shipped with the Counts is part of the multiset."""
-    if not all(realisable(W, r) for r in counts): return False
-    return any(W["prior_global"][g] * F(1) * _prod(record_lik(W, r, g) ** n for r, n in counts.items()) > 0 for g in vals(W["globals"]))
+def expressible(W, counts, falsifiers=()):
+    "session 4, 1.1 and 5.1; draft 3: every shipped record and falsifier realisable here, all of them jointly possible"
+    if not all(realisable(W, r) for r in counts) or not all(realisable(W, f, True) for f in falsifiers): return False
+    allrec = counts + Counter(falsifiers)
+    return any(W["prior_global"][g] * _prod(record_lik(W, r, g) ** n for r, n in allrec.items()) > 0 for g in vals(W["globals"]))
 
 def _prod(xs):
     out = F(1)
@@ -222,18 +248,23 @@ def refuse(W):
     gs, ls = vals(W["globals"]), vals(W["locals"])
     for t, u in W["T"].items():                                        # S11: a Global is unpaid
         for l in ls:
-            if len({u[(l, g)] for g in gs}) > 1: raise Refused("GLOBAL")
-    if W.get("after"):                                                 # S12: one After-act, a kernel for every end
-        ends = set(W["T"])
-        if set(W["after"]["K"]) != ends or any(set(W["after"]["K"][t]) != {(l, g) for l in ls for g in gs} for t in ends):
-            raise Refused("AFTER")
-    if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise Refused("PRIOR")
+            if len({u[(l, g)] for g in gs if (l, g) in u}) > 1: raise refused("GLOBAL", "C2.S11")
+    for k, sp in W["O"].items():                                       # S11: nor is an ending utility
+        for o, ue in sp.get("u_end", {}).items():
+            if isinstance(ue, dict):
+                for l in ls:
+                    if len({ue[(l, g)] for g in gs if (l, g) in ue}) > 1: raise refused("GLOBAL", "C2.S11")
+    if W.get("after"):                                                 # S12: one After-act, a kernel for exactly the ends
+        supp = {(l, g) for g in gs for l, p in W["prior_local"][g].items() if p > 0 and W["prior_global"].get(g, 0) > 0}
+        if set(W["after"]["K"]) != ends_of(W) or any(not supp <= set(W["after"]["K"][e]) for e in ends_of(W)):
+            raise refused("AFTER", "C2.S12")
+    if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise refused("PRIOR", "C2.J20")
     for g in gs:
-        if sum(W["prior_local"][g].values()) != 1: raise Refused("PRIOR")
-    if W.get("counts"):                                                # S13, S14
-        shipped = W["counts"] + Counter([W["falsifier"]]) if W.get("falsifier") else W["counts"]
-        if W.get("counts_sha") != counts_sha(W["counts"]) or not expressible(W, shipped): raise Refused("PLATE")
-        if W.get("score") != loo_score(W, W["counts"]): raise Refused("UNSCORED")
+        if sum(W["prior_local"][g].values()) != 1: raise refused("PRIOR", "C2.J20")
+    if W.get("counts") is not None or W.get("falsifiers"):             # S13, S14
+        c, fs = W.get("counts", Counter()), tuple(W.get("falsifiers", ()))
+        if W.get("counts_sha") != counts_sha(c, fs) or not expressible(W, c, fs): raise refused("PLATE", "C2.S13")
+        if W.get("score") != loo_score(W, c, fs): raise refused("UNSCORED", "C2.S14")
     return W
 
 def seq_prob(W, g, draws, t):
@@ -711,8 +742,9 @@ def frozen():
     for pg, want in ((p_no, "say a2"), (p_yes, "abstain")):
         w = episode_world(D2, Counter(), pg); b = REF.condition(w["prior"], w["O"]["ask"]["K"], "a2")
         assert REF.solve(b, w, 0)[1] == want
-    D2["counts"] = good; D2["counts_sha"] = counts_sha(good); D2["falsifier"] = fals
-    D2["score"] = loo_score(D2, good); refuse(D2)
+    D2["counts"] = good; D2["falsifiers"] = [fals]; D2["counts_sha"] = counts_sha(good, [fals])
+    D2["score"] = loo_score(D2, good, [fals]); refuse(D2)
+    assert post_global(D2, evidence(D2)) == p_yes
     L.append("  s6-5.1 a refit shipped a falsified plate's Counts: without the falsifying record P(ask perfect) = 10^20/(10^20 + 9^20)")
     L.append("         and it says a2; with it, 0 and it abstains - the falsifier now travels with its Counts (J26)")
     WJ = grader_global_world(); cls = [set(c) for c in unwashable(WJ)]
@@ -725,6 +757,24 @@ def frozen():
     L.append("         one-run maximiser abstains too (value 0); a truly perfect ask forgoes 3/10 an episode, unseen")
     L.append("  s5-7.17 v0's C8 over a plate: horizon 1 is worth 291/250 over two episodes, horizon 2 only 28/25 - C8 is a")
     L.append("         per-episode theorem (with C5); a longer horizon exploits within the episode and never buys the grade")
+    # ---- brief 007's questions and SURFACE v0.2 session 1 (2026-09-24)
+    Wq = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); lsq, gsq = vals(Wq["locals"]), vals(Wq["globals"])
+    Wq["O"]["peek"] = {"K": {(l, g): {"drop": F(1, 2), "go": F(1, 2)} for l in lsq for g in gsq}, "price": F(0), "once": True,
+                       "ends": {"drop"}, "u_end": {"drop": F(0)}}
+    Wq["N"] = 2; Wq["d"] = 2
+    try: refuse(Wq); assert False
+    except Refused as e: assert str(e) == "AFTER"
+    Wq["after"]["K"]["end:peek=drop"] = {(l, g): {l[0]: F(1)} for l in lsq for g in gsq}; refuse(Wq)
+    assert realisable(Wq, ((("peek", "drop"),), "end:peek=drop", "a1")) and not realisable(Wq, ((("peek", "drop"), ("ask", "a1")), "say a1", "a1"))
+    L.append("  Q8 an After-act kernel for every end, an ending outcome's included: refused AFTER without its row, accepted with it")
+    pre = ((("ask", "a1"),), None, None)
+    assert realisable(A, pre, falsifier=True) and not realisable(A, pre)
+    L.append("  Q9 a falsifier from a report inside an episode - draws up to it, no end, no after-report - is shippable")
+    Ws = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); c1 = Counter([rec("a1", "a1", "say a1")])
+    Ws["counts"] = c1; Ws["falsifiers"] = [rec("a1", "a2", "say a1")]; Ws["counts_sha"] = counts_sha(c1, Ws["falsifiers"])
+    Ws["score"] = loo_score(Ws, c1, Ws["falsifiers"]); refuse(Ws)
+    assert counts_sha(c1, Ws["falsifiers"]) != counts_sha(c1)
+    L.append("  s02-1.2 the digest covers the falsifying records: shipping one changes the digest, and the Score scores it")
     return L
 
 def cap_world(pi):

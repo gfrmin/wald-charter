@@ -1,0 +1,16 @@
+# expect: PLATE
+# rule: C2.S13
+world("appendix-f", closed=True)
+horizon(2, source="elicited")
+depth(2, source="elicited")
+space({"answer": ["a1", "a2"], "rel": ["9/10", "3/5"]})
+globals(["rel"])
+prior({"9/10": 1/2, "3/5": 1/2}, source="elicited")
+local_prior({"9/10": {"a1": 1/2, "a2": 1/2}, "3/5": {"a1": 1/2, "a2": 1/2}}, source="elicited")
+utility({"say a1": by("answer", {"a1": 1, "a2": -2}), "say a2": by("answer", {"a1": -2, "a2": 1}), "abstain": by("answer", {"a1": 0, "a2": 0})}, source="elicited")
+price({"ask": 0, "check": 0}, source="elicited")
+act("ask", once=True, kernel=table({("a1", "9/10"): {"a1": 9/10, "a2": 1/10}, ("a2", "9/10"): {"a2": 9/10, "a1": 1/10}, ("a1", "3/5"): {"a1": 3/5, "a2": 2/5}, ("a2", "3/5"): {"a2": 3/5, "a1": 2/5}}, source="elicited"), reads=["answer", "rel"])
+act("check", once=True, kernel=by("answer", {"a1": {"a1": 4/5, "a2": 1/5}, "a2": {"a2": 4/5, "a1": 1/5}}, source="elicited"), reads=["answer"])
+counts([], sha256="2960860735be345a594e69a25ffda37611cf6d16e6e38815025afc572cad8c0d", source="data")
+falsifiers([[[["ask", "a1"], ["check", "a1"]], "say a1", None]])
+score(1, of="counts", source="data")
