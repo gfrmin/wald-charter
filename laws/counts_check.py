@@ -20,6 +20,7 @@ from collections import Counter
 import argparse, hashlib, itertools, json, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spec_check import REF, Refused
+import model
 
 def refused(name, rule):
     "a refusal carrying the rule of CHARTER v0.2 that makes it, for the traceability lint (laws/page_check.py)"
@@ -51,6 +52,7 @@ def record_lik(W, rec, g):
     "P(this episode's reports and after-report | Global g): the local state is summed out under P(local | g)"
     obs, t, oa = rec; tot = F(0)
     for l, pl in W["prior_local"][g].items():
+        if pl == 0: continue                     # not a state: its tables may have no row (V2.4, kit v0.13)
         p = pl
         for k, o in obs: p *= W["O"][k]["K"][(l, g)].get(o, F(0))
         if oa is not None and t is not None: p *= W["after"]["K"][t][(l, g)].get(oa, F(0))
@@ -59,7 +61,7 @@ def record_lik(W, rec, g):
 
 def post_global(W, counts):
     "the declared prior over Globals conditioned on Counts - v0 `condition`, applied to a multiset of records"
-    w = {g: W["prior_global"][g] for g in vals(W["globals"])}
+    w = dict(W["prior_global"])                  # the values P(Global) names: a value it leaves out is no state (QUESTIONS.md Q11)
     for rec, n in counts.items():
         for g in w: w[g] *= record_lik(W, rec, g) ** n
     s = sum(w.values())
@@ -70,8 +72,10 @@ def episode_world(W, counts, prior=None):
     "an INTERFACE (v0) World for one episode: prior = P(Global | Counts) x P(local | Global); locals start fresh"
     pg = post_global(W, counts) if prior is None else prior
     p = {skey(l, g): pg[g] * pl for g in pg for l, pl in W["prior_local"][g].items() if pg[g] * pl > 0}
+    # an act's ending outcomes and their utilities carry into the episode: v0's loop ends there (kit v0.13; they were dropped)
     return {"prior": p, "T": {t: strK(u) for t, u in W["T"].items()},
-            "O": {k: {"K": strK(s["K"]), "price": s["price"], "once": s["once"], "ends": {}} for k, s in W["O"].items()},
+            "O": {k: {"K": strK(s["K"]), "price": s["price"], "once": s["once"], "ends": {o: strK(s["u_end"][o]) for o in s.get("ends", ())}}
+                  for k, s in W["O"].items()},
             "N": W["N"], "d": W["d"], "declared_prior": {g: W["prior_global"][g] for g in pg}}
 
 AFTER = "<after>"
@@ -117,13 +121,13 @@ def classes(W):
     (attack session 2 on draft 6, 3.1: draft 6's design could exceed N and accepted Worlds no policy learns)."""
     ts = list(W["T"]) if W.get("after") else [None]
     ds = designs(W); sig = {}
-    for g in vals(W["globals"]):
+    for g in W["prior_global"]:
         sig.setdefault(tuple(design_dist(W, g, d, t) for d in ds for t in ts), []).append(g)
     return list(sig.values())
 
 def learns_nothing(W):
     "every Global value in one class: no plate, from any records this declaration can write, can move the Globals"
-    return len(vals(W["globals"])) > 1 and len(classes(W)) == 1
+    return len(W["prior_global"]) > 1 and len(classes(W)) == 1
 
 def paid_part(W, l, g):
     """what an act can feel of a state (session 6): the utility differences between terminals - a per-state constant
@@ -182,20 +186,24 @@ def plate_value(W, T, counts=None, one_run=False):
             return best
         a = REF.solve(b, w, min(w["d"], n), used)[1]
         return act_value(a, b, n, used, obs)
+    def finish(b, end, earned, obs):
+        "the episode has ended at `end`: the After-act if declared, then the rest of the plate from the new Counts"
+        v = earned
+        if W.get("after"):
+            K = strK(W["after"]["K"][end]); v -= W["after"]["price"]
+            for o, po in REF.push(b, K).items():
+                if po > 0: v += po * plate_value(W, T - 1, counts + Counter([(tuple(obs), end, o)]), one_run)
+        else:
+            v += plate_value(W, T - 1, counts + Counter([(tuple(obs), end, None)]), one_run)
+        return v
     def act_value(a, b, n, used, obs):
-        if a in w["T"]:
-            v = REF.expect(b, w["T"][a])
-            if W.get("after"):
-                K = strK(W["after"]["K"][a]); v -= W["after"]["price"]
-                for o, po in REF.push(b, K).items():
-                    if po > 0: v += po * plate_value(W, T - 1, counts + Counter([(tuple(obs), a, o)]), one_run)
-            else:
-                v += plate_value(W, T - 1, counts + Counter([(tuple(obs), a, None)]), one_run)
-            return v
+        if a in w["T"]: return finish(b, a, REF.expect(b, w["T"][a]), obs)
         K = w["O"][a]["K"]; v = -w["O"][a]["price"]
         for o, po in REF.push(b, K).items():
             if po > 0:
-                v += po * go(REF.condition(b, K, o), n - 1, used | ({a} if w["O"][a]["once"] else set()), obs + [(a, o)])
+                bo = REF.condition(b, K, o)
+                if o in w["O"][a]["ends"]: v += po * finish(bo, f"end:{a}={o}", REF.expect(bo, w["O"][a]["ends"][o]), obs + [(a, o)])
+                else: v += po * go(bo, n - 1, used | ({a} if w["O"][a]["once"] else set()), obs + [(a, o)])
         return v
     return go(w["prior"], w["N"], frozenset(), [])
 
@@ -216,27 +224,37 @@ def ends_of(W):
     "every end: each terminal, and each ending outcome as end:act=outcome (CHARTER v0.2 section 3; Q8 of brief 007)"
     return set(W["T"]) | {f"end:{k}={o}" for k, sp in W["O"].items() for o in sp.get("ends", ())}
 
+def named(K):
+    "the outcomes a kernel names, in any row: what the door may report for it (v0 section 1: an Obs is a value in B_k)"
+    return {o for row in K.values() for o in row}
+
 def realisable(W, rec_, falsifier=False):
-    """a record an episode of this declaration can produce under v0's loop, whatever its policy (the kernel's policy
-    is not consulted): its acts declared, at most N draws, each `once` act at most once, an ending outcome only as
-    the last draw and then as the end, an after-report exactly when an After-act is declared. A falsifier may also be
-    a prefix - draws up to the report that falsified the World inside the episode, with no end (Q9 of brief 007)."""
+    """a record an episode of this declaration can write under v0's loop, whatever its policy and whatever the door
+    reports - exactly what laws/realise_check.py enumerates from the loop (kit v0.13): each draw an act of M and an
+    outcome its kernel names; at most N draws; each `once` act at most once; an ending outcome only as the last draw,
+    and then the end is that ending outcome's (QUESTIONS.md Q14), else a terminal; an after-report its kernel names under
+    that end exactly when an After-act is declared. A falsifier (V2.7) is either a prefix - the draws up to and including
+    the report that falsified the World, which may be an ending outcome (Q15), with no end and no after-report - or a
+    full record whose after-report falsified it; a full record with no after-report falsified nothing."""
     obs, t, oa = rec_
     acts = [k for k, _ in obs]
     if len(acts) > W["N"] or any(k not in W["O"] for k in acts): return False
     if any(W["O"][k]["once"] and acts.count(k) > 1 for k in set(acts)): return False
-    for i, (k, o) in enumerate(obs):
-        if o in W["O"][k].get("ends", ()) and (i != len(obs) - 1 or t != f"end:{k}={o}"): return False
+    if any(o not in named(W["O"][k]["K"]) for k, o in obs): return False
+    ending = [i for i, (k, o) in enumerate(obs) if o in W["O"][k].get("ends", ())]
+    if any(i != len(obs) - 1 for i in ending): return False
     if falsifier and t is None: return oa is None and len(obs) >= 1
-    if falsifier and oa is None: return False          # an episode that ended with no report after it falsified nothing (SURFACE v0.2 session 3, 1.1)
-    if t not in ends_of(W): return False
-    return (oa is not None) == bool(W.get("after")) or (falsifier and oa is not None and bool(W.get("after")))
+    if ending:
+        if t != f"end:{obs[-1][0]}={obs[-1][1]}": return False
+    elif t not in W["T"]: return False
+    if not W.get("after"): return oa is None and not falsifier
+    return oa is not None and oa in named(W["after"]["K"].get(t, {}))
 
 def expressible(W, counts, falsifiers=()):
     "session 4, 1.1 and 5.1; draft 3: every shipped record and falsifier realisable here, all of them jointly possible"
     if not all(realisable(W, r) for r in counts) or not all(realisable(W, f, True) for f in falsifiers): return False
     allrec = counts + Counter(falsifiers)
-    return any(W["prior_global"][g] * _prod(record_lik(W, r, g) ** n for r, n in allrec.items()) > 0 for g in vals(W["globals"]))
+    return any(W["prior_global"][g] * _prod(record_lik(W, r, g) ** n for r, n in allrec.items()) > 0 for g in W["prior_global"])
 
 def _prod(xs):
     out = F(1)
@@ -245,7 +263,8 @@ def _prod(xs):
 
 def refuse(W):
     "v0.2's refusals, by name (draft 11: S15 refuses nothing and discloses; shipped Counts must be expressible)"
-    gs, ls = vals(W["globals"]), vals(W["locals"])
+    if not W["prior_global"] or set(W["prior_local"]) != set(W["prior_global"]): raise refused("PRIOR", "C2.J20")   # before any row is read
+    gs, ls = list(W["prior_global"]), vals(W["locals"])        # the Globals P(Global) names (QUESTIONS.md Q11)
     for t, u in W["T"].items():                                        # S11: a Global is unpaid
         for l in ls:
             if len({u[(l, g)] for g in gs if (l, g) in u}) > 1: raise refused("GLOBAL", "C2.S11")
@@ -258,6 +277,9 @@ def refuse(W):
         supp = {(l, g) for g in gs for l, p in W["prior_local"][g].items() if p > 0 and W["prior_global"].get(g, 0) > 0}
         if set(W["after"]["K"]) != ends_of(W) or any(not supp <= set(W["after"]["K"][e]) for e in ends_of(W)):
             raise refused("AFTER", "C2.S12")
+        if W.get("bottom") is not None:                                # S12: at the catch-all, every after-outcome has mass (Q10d)
+            b = model.bottom_state(W)
+            if any(K.get(b, {}).get(o, F(0)) <= 0 for K in W["after"]["K"].values() for o in named(K)): raise refused("AFTER", "C2.S12")
     if sum(W["prior_global"].values()) != 1 or min(W["prior_global"].values()) <= 0: raise refused("PRIOR", "C2.J20")
     for g in gs:
         if sum(W["prior_local"][g].values()) != 1: raise refused("PRIOR", "C2.J20")
@@ -271,6 +293,7 @@ def seq_prob(W, g, draws, t):
     "P(these draws | g), the local summed out; an after-draw is read under end t"
     tot = F(0)
     for l, pl in W["prior_local"][g].items():
+        if pl == 0: continue
         p = pl
         for k, o in draws:
             p *= (W["after"]["K"][t] if k == AFTER else W["O"][k]["K"])[(l, g)].get(o, F(0))
@@ -335,6 +358,43 @@ def play(impl, W, recs, script):
         a = impl.decide(b, w, n, used); acts.append(a)
         if a in w["T"]: return tuple(acts)
         b = REF.condition(b, w["O"][a]["K"], script[a]); used |= {a} if w["O"][a]["once"] else set(); n -= 1
+        if script[a] in w["O"][a]["ends"]: return tuple(acts)
+
+class Result:
+    "one episode of the reference plate: its acts, its status (TERMINAL, ENDED at an ending outcome, WORLD_FALSIFIED) and its record"
+    def __init__(self, acts, status, record): self.acts, self.status, self.record = acts, status, record
+
+class Plate:
+    """the reference plate, the definition behind INTERFACE's `wald.plate` (kit v0.13; it was kit_counts._RefWald): each
+    episode's prior from the Counts and falsifying records the declaration ships and the records the plate has written
+    (section 4, C2.S13); v0's loop at the floor, an ending outcome ending the episode as v0 section 2 says; the After-act
+    taken whenever declared (C2.S12); a report of probability zero, during the episode or after it, ends the plate with
+    Counts as they were and the falsifying record kept (C2.J26). Its door is anything with `outcome(act)` and `fire(act)`."""
+    def __init__(self, W):
+        self.W, self.c, self.f = W, Counter(W.get("counts", Counter())), None
+        self.shipped = list(W.get("falsifiers", ()))
+    def counts(self): return Counter(self.c)
+    def falsifier(self): return self.f
+    def run(self, door):
+        W = self.W
+        if self.f is not None: raise refused("FALSIFIED", "C2.J26")
+        w = episode_world(W, self.c + Counter(self.shipped))
+        b, n, used, draws, acts, end = w["prior"], w["N"], frozenset(), [], [], None
+        while end is None:
+            a = REF.solve(b, w, min(w["d"], n), used)[1]; acts.append(a)
+            if a in w["T"]: door.fire(a); end = a; break
+            o = door.outcome(a)
+            if REF.push(b, w["O"][a]["K"]).get(o, F(0)) == 0:
+                self.f = (tuple(draws + [(a, o)]), None, None); return Result(acts, "WORLD_FALSIFIED", self.f)
+            b = REF.condition(b, w["O"][a]["K"], o); draws.append((a, o)); used |= {a} if w["O"][a]["once"] else set(); n -= 1
+            if o in w["O"][a]["ends"]: end = f"end:{a}={o}"
+        oa = None
+        if W.get("after"):
+            K = strK(W["after"]["K"][end]); oa = door.outcome(W["after"].get("name", "after"))
+            if REF.push(b, K).get(oa, F(0)) == 0:
+                self.f = (tuple(draws), end, oa); return Result(acts, "WORLD_FALSIFIED", self.f)
+        r = (tuple(draws), end, oa); self.c[r] += 1
+        return Result(acts, "TERMINAL" if end in W["T"] else "ENDED", r)
 
 # ---------------------------------------------------------------- Part 2: checks (True = holds)
 def FRESH(impl, W, recs, rng):
@@ -760,7 +820,7 @@ def frozen():
     # ---- brief 007's questions and SURFACE v0.2 session 1 (2026-09-24)
     Wq = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)); lsq, gsq = vals(Wq["locals"]), vals(Wq["globals"])
     Wq["O"]["peek"] = {"K": {(l, g): {"drop": F(1, 2), "go": F(1, 2)} for l in lsq for g in gsq}, "price": F(0), "once": True,
-                       "ends": {"drop"}, "u_end": {"drop": F(0)}}
+                       "ends": {"drop"}, "u_end": {"drop": {(l, g): F(0) for l in lsq for g in gsq}}}
     Wq["N"] = 2; Wq["d"] = 2
     try: refuse(Wq); assert False
     except Refused as e: assert str(e) == "AFTER"
@@ -789,7 +849,8 @@ def cap_world(pi):
             "prior_local": {g: {l: ph[l[0]] * F(1, 2) for l in ls} for g in gs}, "T": T,
             "O": {"test": {"K": {(l, g): Kt[l[0]] for l in ls for g in gs}, "price": F(1, 2), "once": True},
                   "scan": {"K": {(l, g): Ks[l[0]] for l in ls for g in gs}, "price": F(1, 5), "once": True},
-                  "k": {"K": {(l, g): Kk(l, g) for l in ls for g in gs}, "price": F(10), "once": True, "u_end": {"e": F(1, 5)}}},
+                  "k": {"K": {(l, g): Kk(l, g) for l in ls for g in gs}, "price": F(10), "once": True, "ends": {"e"},
+                        "u_end": {"e": {(l, g): F(1, 5) for l in ls for g in gs}}}},
             "N": 2, "d": 1, "dplus": 2, "fraction": F(1, 2), "rate": F(1, 400), "ops": {s_: F(25 * s_) for s_ in range(1, 9)}}
 
 def echo_world():
@@ -882,9 +943,18 @@ def stakes_world(rel_fixed=False):
     T = {"say a1": {(l, g): (F(1) if l[0] == "a1" else pen[l[1]]) for l in ls for g in gs},
          "say a2": {(l, g): (F(1) if l[0] == "a2" else pen[l[1]]) for l in ls for g in gs},
          "abstain": {(l, g): F(0) for l in ls for g in gs}}
-    return {"locals": L, "globals": G, "prior_global": {g: F(1, len(gs)) for g in gs}, "prior_local": pl, "T": T,
-            "O": {"ask": {"K": {(l, g): {l[0]: R[g[0]], oth[l[0]]: 1 - R[g[0]]} for l in ls for g in gs}, "price": F(0), "once": True}},
-            "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
+    W = {"locals": L, "globals": G, "prior_global": {g: F(1, len(gs)) for g in gs}, "prior_local": pl, "T": T,
+         "O": {"ask": {"K": {(l, g): {l[0]: R[g[0]], oth[l[0]]: 1 - R[g[0]]} for l in ls for g in gs}, "price": F(0), "once": True}},
+         "after": {"K": {t: {(l, g): {l[0]: F(1)} for l in ls for g in gs} for t in T}, "price": F(0)}, "N": 1, "d": 1}
+    return restrict(W)
+
+def restrict(W):
+    "every table over states keyed by exactly Omega: a state P(local | Global) gives no mass is no state (V2.4, model.check_values)"
+    om = model.omega(W); cut = lambda t: {s: v for s, v in t.items() if s in om}
+    V = dict(W, T={t: cut(u) for t, u in W["T"].items()},
+             O={k: {**a, "K": cut(a["K"]), **({"u_end": {o: cut(u) for o, u in a["u_end"].items()}} if "u_end" in a else {})} for k, a in W["O"].items()})
+    if W.get("after"): V["after"] = {**W["after"], "K": {e: cut(K) for e, K in W["after"]["K"].items()}}
+    return V
 
 def twin_world(py, pyp):
     "session 3, 3.1: appendix A with the poor rung written as two names with identical cells"

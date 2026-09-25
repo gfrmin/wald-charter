@@ -11,7 +11,11 @@ and `# rule: ID`; a lawful pack may declare `# exercises: ID, ...`. Checked:
   T3 every (rule, name) a reference can refuse by at declaration has a poison, and every poison dies by its declared name
      and rule, not merely its name;
   T4 every stated rule is tested: a refusal site with a poison, or a lawful pack or gate check that exercises it;
-  T5 the page's generated sections are what the rules and references give;
+  T5 the page's generated sections are what the rules and references give. A signed page cannot be regenerated: its
+     sections are as of signing, so for a signed page T5 asks that nothing it lists has gone - every refusal it indexes
+     is still made, every rule still has at least its poisons and its exercisers - and that the current rendering, kept in
+     laws/generated/<page> for the next amendment to carry in, is current (kit v0.13, whose corpus grew past SURFACE
+     v0.2's signing);
   T6 a rule draws its meaning only from signed pages and this one: no rule names ERRATA.md, a draft, or any other file
      as the source of what it says (attack session 5 on SURFACE v0.2, 4.1: V2.7 and V2.8 took their meaning from
      ERRATA.md, which binds nothing).
@@ -68,6 +72,45 @@ def render(defs, site, pois, lawful):
         rows.append(f"| {r} | {', '.join(ns) or '—'} | {len(ps)} | {', '.join(ex) or '—'} |")
     return {"refusals": ref + "\n", "trace": "\n".join(rows) + "\n"}
 
+def _index(body):
+    "a refusal index as {name: {rules}}"
+    return {n: {r.strip() for r in rs.split(",")} for n, rs in re.findall(r"^- \*\*([A-Z_]+)\*\*: (.+)$", body, re.M)}
+
+def _trace(body):
+    "a traceability table as {rule: (names, poisons, exercisers)}"
+    out = {}
+    for r, ns, k, ex in re.findall(r"^\| ([A-Z0-9.a-z]+) \| (.*?) \| (\d+) \| (.*?) \|$", body, re.M):
+        if r == "rule": continue
+        split = lambda x: set() if x.strip() == "—" else {y.strip() for y in x.split(",")}
+        out[r] = (split(ns), int(k), split(ex))
+    return out
+
+def signed_t5(page, text, gen, write):
+    "T5 for a signed page: its generated sections contained in the current ones, and the current ones kept beside the laws"
+    fails = []
+    for key, body in gen.items():
+        m = re.search(r"<!-- generated:" + key + r" -->\n(.*?)<!-- /generated -->", text, re.S)
+        if not m: fails.append(f"T5 the page has no generated section '{key}'"); continue
+        if key == "refusals":
+            now = _index(body)
+            for n, rs in _index(m.group(1)).items():
+                if not rs <= now.get(n, set()): fails.append(f"T5 the signed page indexes {n} under {sorted(rs - now.get(n, set()))}, which the references no longer refuse by")
+        else:
+            now = _trace(body)
+            for r, (ns, k, ex) in _trace(m.group(1)).items():
+                cur = now.get(r)
+                if cur is None: fails.append(f"T5 the signed page traces {r}, which is no longer traced"); continue
+                if not ns <= cur[0]: fails.append(f"T5 {r} was refused by {sorted(ns - cur[0])}, and no longer is")
+                if cur[1] < k: fails.append(f"T5 {r} had {k} poisons at signing, and has {cur[1]}")
+                if not ex <= cur[2]: fails.append(f"T5 {r} was exercised by {sorted(ex - cur[2])}, and no longer is")
+    out = os.path.join(HERE, "generated", os.path.basename(page))
+    body = (f"# {os.path.basename(page)} - generated sections, current\n\nThe page is signed, so its own sections are as of signing. These are what `laws/page_check.py` renders from\n"
+            "the rules and the references today; the next amendment carries them in.\n\n## Refusals, by name\n\n<!-- generated:refusals -->\n"
+            + gen["refusals"] + "<!-- /generated -->\n\n## Traceability\n\n<!-- generated:trace -->\n" + gen["trace"] + "<!-- /generated -->\n")
+    if write: os.makedirs(os.path.dirname(out), exist_ok=True); open(out, "w", encoding="utf-8").write(body)
+    elif not os.path.exists(out) or open(out, encoding="utf-8").read() != body: fails.append(f"T5 {os.path.relpath(out, os.path.join(HERE, '..'))} is stale (run with --render)")
+    return fails
+
 def main(page, write=False):
     text = open(page, encoding="utf-8").read(); fails = []
     defs, cited = rules(text); site = sites(); pois, lawful = packs()
@@ -98,6 +141,12 @@ def main(page, write=False):
             fails.append(f"T6 a rule takes its meaning from {ref}, which is not a signed page cited by ID")
     # T5
     gen = render(defs, site, pois, lawful)
+    if re.search(r"^Status: \*\*signed\.\*\*", text, re.M):
+        fails += signed_t5(page, text, gen, write)
+        for f in fails: print("FAIL", f)
+        print(f"page: {len(defs)} rules stated once, {len(site)} refusal sites, {len(pois)} poisons, {len(lawful)} lawful packs declaring what they exercise; "
+              + ("PAGE CHECK PASSES" if not fails else f"PAGE CHECK FAILS ({len(fails)})"))
+        return not fails
     for key, body in gen.items():
         m = re.search(r"(<!-- generated:" + key + r" -->\n)(.*?)(<!-- /generated -->)", text, re.S)
         if not m: fails.append(f"T5 the page has no generated section '{key}'"); continue

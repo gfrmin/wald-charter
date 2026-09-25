@@ -106,7 +106,7 @@ def worlds():
 def main():
     t0 = time.time(); fails, n = [], 0
     for label, W in worlds():
-        base = W.get("counts", Counter()); fbase = list(W.get("falsifiers", ()))
+        fbase = list(W.get("falsifiers", ()))
         for episodes in (1, 2):
             for counts, f in plates(W, episodes):
                 n += 1
@@ -114,7 +114,7 @@ def main():
                 if bad: fails.append(("the plate writes a record its own declaration could not have written", f"{label}: {bad[0]}")); continue
                 if f is not None and not C.realisable(W, f, True):
                     fails.append(("the plate writes a falsifier its own declaration could not have written", f"{label}: {f}")); continue
-                allc = base + counts
+                allc = counts                       # the plate's Counts start from those the declaration ships
                 if f is None: v = verdict(ship(W, allc, fbase)); where = "its own declaration"
                 else: v = verdict(ship(refit(W), allc, fbase + [f])); where = "a refit with every named outcome possible"
                 if v != "accepted": fails.append((f"a plate's Counts do not ship into {where}", f"{label}: {dict(counts)}, {f}: {v}"))

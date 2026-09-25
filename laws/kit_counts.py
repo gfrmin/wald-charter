@@ -259,34 +259,12 @@ class _StandIn:
     def score(self, W, counts, falsifiers=()): return C.loo_score(W, counts, falsifiers)
 
 class _RefWald:
-    "the reference plate: v0's loop at the floor, the After-act taken whenever declared, Counts kept, J26"
+    "the reference plate (counts_check.Plate) behind `wald.plate`, and a Door base class for the scripted doors"
     class Door:
         def outcome(self, act): raise NotImplementedError
         def fire(self, act): raise NotImplementedError
-    class _Result:
-        def __init__(self, acts, status): self.acts, self.status = acts, status
-    class _Plate:
-        def __init__(self, W): self.W, self.c, self.f = W, Counter(), None
-        def counts(self): return Counter(self.c)
-        def falsifier(self): return self.f
-        def run(self, door):
-            W = self.W; w = C.episode_world(W, self.c); b, n, used, draws, acts = w["prior"], w["N"], frozenset(), [], []
-            while True:
-                a = REF.solve(b, w, min(w["d"], n), used)[1]; acts.append(a)
-                if a in w["T"]: door.fire(a); break
-                o = door.outcome(a)
-                if REF.push(b, w["O"][a]["K"]).get(o, F(0)) == 0:
-                    self.f = (tuple(draws + [(a, o)]), None, None); return _RefWald._Result(acts, "WORLD_FALSIFIED")
-                b = REF.condition(b, w["O"][a]["K"], o); draws.append((a, o)); used |= {a} if w["O"][a]["once"] else set(); n -= 1
-            oa = None
-            if W.get("after"):
-                K = C.strK(W["after"]["K"][a]); oa = door.outcome(W["after"].get("name", "after"))
-                if REF.push(b, K).get(oa, F(0)) == 0:
-                    self.f = (tuple(draws), a, oa); return _RefWald._Result(acts, "WORLD_FALSIFIED")
-            self.c[(tuple(draws), a, oa)] += 1
-            return _RefWald._Result(acts, "TERMINAL")
-    @classmethod
-    def plate(cls, W): return cls._Plate(W)
+    @staticmethod
+    def plate(W): return C.Plate(W)
 
 class _Liar(_StandIn):
     def disclose(self, W): return []

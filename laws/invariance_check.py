@@ -18,16 +18,20 @@ from spec_check import REF, Refused
 def remap(W, fl=lambda l: l, fg=lambda g: g, fname=lambda x: x, locals_=None, globals_=None, pg=None, pl=None):
     "rebuild a World under maps of locals, Globals and names"
     st = lambda k: (fl(k[0]), fg(k[1]))
-    rec = lambda r: (tuple((fname(a), fname(o)) for a, o in r[0]), None if r[1] is None else fname(r[1]), None if r[2] is None else fname(r[2]))
+    ending = {f"end:{k}={o}": f"end:{fname(k)}={fname(o)}" for k, a in W["O"].items() for o in a.get("ends", ())}
+    fend = lambda e: ending.get(e) or fname(e)          # an ending end renames its act and its outcome, not the string (kit v0.13)
+    rec = lambda r: (tuple((fname(a), fname(o)) for a, o in r[0]), None if r[1] is None else fend(r[1]), None if r[2] is None else fname(r[2]))
     V = {"locals": locals_ if locals_ is not None else [(fname(c), [fname(v) for v in vs]) for c, vs in W["locals"]],
          "globals": globals_ if globals_ is not None else [(fname(c), [fname(v) for v in vs]) for c, vs in W["globals"]],
          "prior_global": pg if pg is not None else {fg(g): p for g, p in W["prior_global"].items()},
          "prior_local": pl if pl is not None else {fg(g): {fl(l): p for l, p in row.items()} for g, row in W["prior_local"].items()},
          "T": {fname(t): {st(k): u for k, u in r.items()} for t, r in W["T"].items()},
-         "O": {fname(k): {**a, "K": {st(s): {fname(o): p for o, p in row.items()} for s, row in a["K"].items()}} for k, a in W["O"].items()},
+         "O": {fname(k): {**a, "K": {st(s): {fname(o): p for o, p in row.items()} for s, row in a["K"].items()},
+                          **({"ends": {fname(o) for o in a["ends"]}} if "ends" in a else {}),
+                          **({"u_end": {fname(o): {st(s): u for s, u in ue.items()} for o, ue in a["u_end"].items()}} if "u_end" in a else {})} for k, a in W["O"].items()},
          "N": W["N"], "d": W["d"]}
     if W.get("after"):
-        V["after"] = {"K": {fname(e): {st(s): {fname(o): p for o, p in row.items()} for s, row in K.items()} for e, K in W["after"]["K"].items()},
+        V["after"] = {"K": {fend(e): {st(s): {fname(o): p for o, p in row.items()} for s, row in K.items()} for e, K in W["after"]["K"].items()},
                       "price": W["after"]["price"], "name": fname(W["after"].get("name", "after"))}
     if W.get("counts") is not None and "counts_sha" in W:
         c = Counter({rec(r): n for r, n in W["counts"].items()}); fs = [rec(f) for f in W.get("falsifiers", [])]
@@ -81,7 +85,9 @@ def twin(W):
     V["prior_global"] = dict(V["prior_global"]); half = V["prior_global"][g0] / 2; V["prior_global"][g0] = half; V["prior_global"][g1] = half
     V["prior_local"] = dict(V["prior_local"]); V["prior_local"][g1] = dict(V["prior_local"][g0])
     for t in V["T"]: V["T"][t].update({(l, g1): u for (l, g), u in list(V["T"][t].items()) if g == g0})
-    for k in V["O"]: V["O"][k]["K"].update({(l, g1): r for (l, g), r in list(V["O"][k]["K"].items()) if g == g0})
+    for k in V["O"]:
+        V["O"][k]["K"].update({(l, g1): r for (l, g), r in list(V["O"][k]["K"].items()) if g == g0})
+        for o, ue in V["O"][k].get("u_end", {}).items(): ue.update({(l, g1): u for (l, g), u in list(ue.items()) if g == g0})
     if V.get("after"):
         for e in V["after"]["K"]: V["after"]["K"][e].update({(l, g1): r for (l, g), r in list(V["after"]["K"][e].items()) if g == g0})
     if V.get("counts") is not None and "counts_sha" in V: V["score"] = C.loo_score(V, V["counts"], V.get("falsifiers", []))
