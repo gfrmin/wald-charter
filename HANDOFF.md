@@ -76,7 +76,7 @@ Adopted on 2026-09-24, after two v0.2 pages took fifteen and eight drafts. Most 
 4. **Amendment candidates, each only when its measurement forces it:**
    - SURFACE v0.3: Q10f and Q16;
    - CHARTER v0.3: the queued errata (`ERRATA.md`), and **the Score derived, not shipped** — it is a function of the Counts the kernel recomputes, and it grows without bound, so print it at declaration as S15's disclosure is;
-   - **a menu that depends on what was observed**: the arena's "blind switch", where submitting the second opinion's answer can fire without consulting it and the World undercharges;
+   - **acts with a precondition** (queued for CHARTER v0.3 in `ERRATA.md`, with the arena's table as its §0): the arena's "blind switch", where submitting the second opinion's answer can fire without consulting it and the World undercharges — 96 of 150 dry-run questions, about 0.64 a question at c = 1;
    - **cheaper Global grids**: the cost of a plate grows as the product of every Global's grid, and exact posteriors grow in digits with the Counts; the arena's timings (4 s to load and 1.7 s an episode at 128 Global values, 79 s to load at 648) are the measurement.
 5. Findings on signed pages go to `ERRATA.md`; a finding from any source first asks which gate check should have found it.
 

@@ -12,6 +12,21 @@ Signed pages are not edited (CHARTER §8). Wording found wanting is queued here 
 
 3. **S14's Score gave the falsifying records no term**, though S13 has the prior condition on them (attack session 3 on SURFACE v0.2, finding 1.1). A pack could therefore ship a plate's data as "falsifying records" and move its learned prior while its Score stayed at the empty product, 1, the best any pack can have. **Corrected reading:** the leave-one-out product has a term for each copy of each record of the Counts and for each falsifying record, each under the prior conditioned on all the others. And a falsifying record is either a prefix — the draws up to and including a report that falsified the World inside an episode, with no end and no after-report — or a full record whose after-report falsified it; a full record with no after-report falsified nothing, and shipped as a falsifier it is refused PLATE. `laws/counts_check.py` implements both. No act changes; only the Score and what PLATE accepts. Adopted by SURFACE v0.2 K28, ruled by the owner on 2026-09-24, and in force from `surface-v0.2`, whose V2.7 and V2.8 state it in full and decide over C2.S13 and C2.S14 as the later page; CHARTER v0.3 is to restate it.
 
+## Amendment queued for CHARTER v0.3 — acts with a precondition
+
+Not an erratum: no signed page says this wrong, it cannot say it at all. Queued here so v0.3 carries it, with the measurement that forces it (§8 of v0) as the page's §0.
+
+**§0, the measurement.** `gfrmin/wald-arena` at `12d9d23`, `showcases/omniscience/SCOREBOARD.md`, the AA-Omniscience dry run: 150 test questions, p = 1. `answer_second` submits the second opinion's answer; it is a terminal, so the World cannot make it wait for `second_opinion`, and prices it at 0 when fired blind. The door then buys the second opinion, so every blind switch is undercharged by c.
+
+| c | wald consults / agreement | blind switches | total undercharge | per question | wald realised, with Counts | without Counts |
+|---|---|---|---|---|---|---|
+| 1/10 | 67% / 45% | 96 of 150 | 48/5 | 0.064 | −0.104 | −0.100 |
+| 1 | 64% / 39% | 96 of 150 | 96 | **0.64** | −0.677 | −1.006 |
+
+At p = 3 and p = 10 there were none. The dry run is degenerate — Haiku is the primary, the second opinion and the grader — so the count says nothing about the frozen models; what it shows is that the hole is reached, often, by an ordinary policy on an ordinary World. The arena's workaround (QUESTIONS.md 2.19, revised 2026-09-27) puts −c in `answer_second`'s utility in every state: a blind switch is then priced exactly, and a switch after consulting is overcharged by c. No constant in a utility prices both paths; only the menu can.
+
+**What v0.3 is to say.** An act may declare a precondition: another act that must have been executed earlier in the episode. It enters M only once that act has been. This extends v0's menu rule, under which executing a `once` act already removes it from M (v0 §1's Menu, and M′ in §2): a precondition is the other direction, executing an act adds one. §2's M′ becomes "M without k if k is `once`, with every act whose precondition is k". M stays a function of the acts executed, never of what they reported. Places v0.3 must carry it: v0's T non-empty (T must be non-empty with no act executed); C5, C9 and v0.1's cap (whose proof relies on the root M containing every later menu — it no longer does); C2.S13's "any act of M at each step" and C2.S15's realisable designs (a record that fires `answer_second` before `second_opinion` is then refused PLATE); and SURFACE v0.3's syntax for declaring it. Open for the owner: whether a precondition may name only an observational act, and whether one act may have several.
+
 ## Queued for SURFACE v0.2 — folded into its §2 (draft 7)
 
 1. **§3's "A parameter keeps its own source wherever it is read" admits two census readings** (attack on SURFACE v0.1, session 2, finding 4.2): the cell that reads a parameter counts under the table's source (what `laws/surface_check.py` has done since `surface-v0`) or under the parameter's. SURFACE v0.1 K17 fixes the former as the reading in force. No act changes; only a printed census.
