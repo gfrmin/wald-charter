@@ -48,15 +48,16 @@ def main():
             twice += 1
             try: SC.check(v, {}, OK); fails.append(f"{name} :: {label}: a key written twice, and the reference accepts it (Q10e)")
             except Exception: pass
-    tc = shutil.which("mypy") if os.environ.get("WALD_TYPECHECK") else None      # opt-in: the shapes are checked at run time regardless
+    off = os.environ.get("WALD_TYPECHECK") == "0"                                # on by default; the shapes are checked at run time regardless
+    tc = None if off else shutil.which("mypy")
     if tc:
         r = subprocess.run([tc, "--ignore-missing-imports", os.path.join(HERE, "model.py")], capture_output=True, text=True)
-        if r.returncode != 0: fails.append("mypy --strict model.py: " + r.stdout.strip().splitlines()[-1])
+        if r.returncode != 0: fails.append("mypy model.py: " + r.stdout.strip().splitlines()[-1])
     kinds = {}
     for f in fails: kinds.setdefault(f.split(": ", 1)[-1].split(" (")[0][:80] if " :: " in f else f[:80], []).append(f)
     for k, fs in list(kinds.items())[:24]: print(f"FAIL {len(fs)} x  {fs[0][:220]}")
-    print(f"model: {n} Worlds, {accepted} accepted mutations and {twice} keys written twice checked against model.py in {time.time() - t0:.0f}s"
-          + ("; mypy on model.py" if tc else " at run time (WALD_TYPECHECK=1 adds mypy)") + "; "
+    typed = "mypy on model.py" if tc else "TYPES UNCHECKED, " + ("WALD_TYPECHECK=0" if off else "mypy not installed")   # first: the gate prints 100 characters
+    print(f"model: {typed}; {n} Worlds, {accepted} accepted mutations and {twice} keys written twice checked against model.py in {time.time() - t0:.0f}s; "
           + ("MODEL PASSES" if not fails else f"MODEL FAILS ({len(fails)})"))
     return not fails
 
