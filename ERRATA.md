@@ -16,14 +16,25 @@ Signed pages are not edited (CHARTER §8). Wording found wanting is queued here 
 
 Not an erratum: no signed page says this wrong, it cannot say it at all. Queued here so v0.3 carries it, with the measurement that forces it (§8 of v0) as the page's §0.
 
-**§0, the measurement.** `gfrmin/wald-arena` at `12d9d23`, `showcases/omniscience/SCOREBOARD.md`, the AA-Omniscience dry run: 150 test questions, p = 1. `answer_second` submits the second opinion's answer; it is a terminal, so the World cannot make it wait for `second_opinion`, and prices it at 0 when fired blind. The door then buys the second opinion, so every blind switch is undercharged by c.
+**§0, the measurement.** `gfrmin/wald-arena`, the AA-Omniscience showcase. `answer_second` submits the second opinion's answer; it is a terminal, so the World cannot make it wait for `second_opinion`. Two runs measured it.
+
+*The dry run* (`12d9d23`, `showcases/omniscience/SCOREBOARD.md`; Haiku as primary, second opinion and grader; 150 test questions, p = 1; `answer_second` priced 0 in the World, so a blind switch was undercharged by c):
 
 | c | wald consults / agreement | blind switches | total undercharge | per question | wald realised, with Counts | without Counts |
 |---|---|---|---|---|---|---|
 | 1/10 | 67% / 45% | 96 of 150 | 48/5 | 0.064 | −0.104 | −0.100 |
 | 1 | 64% / 39% | 96 of 150 | 96 | **0.64** | −0.677 | −1.006 |
 
-At p = 3 and p = 10 there were none. The dry run is degenerate — Haiku is the primary, the second opinion and the grader — so the count says nothing about the frozen models; what it shows is that the hole is reached, often, by an ordinary policy on an ordinary World. The arena's workaround (QUESTIONS.md 2.19, revised 2026-09-27) puts −c in `answer_second`'s utility in every state: a blind switch is then priced exactly, and a switch after consulting is overcharged by c. No constant in a utility prices both paths; only the menu can.
+*Stage 2* (`100e250`, `runs/run/SCOREBOARD-stage2.md`; gpt-5.5 primary, Opus 5.5 second opinion, gemini-3.8-flash grader; 300 test questions, p = 1; the arena's workaround in force since 2026-09-27 — `answer_second` costs c in every state, so a blind switch is priced exactly and a switch after consulting is overcharged by c):
+
+| c | wald consults / agreement | blind switches | switches after consulting / overcharge | wald realised, with Counts | without Counts |
+|---|---|---|---|---|---|
+| 0 | 100% / 14% | 98 of 300 | 6 / 0 | +0.497 | +0.472 |
+| 1/20 | 50% / 66% | 105 of 300 | 0 / 0 | +0.459 | +0.422 |
+| 1/10 | 38% / 80% | 60 of 300 | 0 / 0 | +0.408 | +0.360 |
+| 1/4 and above | 0% / 36% | 0 | 0 / 0 | +0.347 | +0.370 |
+
+None at p = 3 or p = 10 in either run. So the blind switch is common on real instruments too, at a cheap second opinion; and **the workaround's overcharge measured zero**: at every c > 0 the policy never consulted and then switched. What remains against it is not a number but that no constant in a utility prices both paths in general — it prices this policy on these instruments. **As of stage 2, no measurement forces this amendment.** It stays queued for the consumer whose policy does switch after consulting.
 
 **What v0.3 is to say.** An act may declare a precondition: another act that must have been executed earlier in the episode. It enters M only once that act has been. This extends v0's menu rule, under which executing a `once` act already removes it from M (v0 §1's Menu, and M′ in §2): a precondition is the other direction, executing an act adds one. §2's M′ becomes "M without k if k is `once`, with every act whose precondition is k". M stays a function of the acts executed, never of what they reported. Places v0.3 must carry it: v0's T non-empty (T must be non-empty with no act executed); C5, C9 and v0.1's cap (whose proof relies on the root M containing every later menu — it no longer does); C2.S13's "any act of M at each step" and C2.S15's realisable designs (a record that fires `answer_second` before `second_opinion` is then refused PLATE); and SURFACE v0.3's syntax for declaring it. Open for the owner: whether a precondition may name only an observational act, and whether one act may have several.
 
