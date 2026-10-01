@@ -276,8 +276,9 @@ def _l6(wald, check, seed):
     except Exception as e:
         check("L6 a plate shipped a falsifying record (Q9)", False, f"{type(e).__name__}: {str(e)[:200]}")
     cases = [("router", C.router_world(True)), ("reliability", C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)))]
-    cases += [(f"random {i}", C.rand_world(rng)) for i in range(4)]
+    cases += [(f"random {i}", C.rand_world(rng)) for i in range(4)] + [(f"deep {i}", C.deep_world(rng)) for i in range(3)]
     for label, W0 in cases:
+        if len(cases) > 60: check("L6 a deep World where depth matters is drawn within 50 tries", False, ""); break
         try:
             bare = R.to_pack_v02(W0); W = R.check(bare, {}, okd); D = drawn(wald, W, rng)
             ref = C.Plate(W)
@@ -286,6 +287,9 @@ def _l6(wald, check, seed):
             text = shipped_text(bare, recs, [], C.counts_sha(recs), C.q(C.loo_score(W, recs)))
             Ws = R.check(text, {}, okd); world = wald.declare(wald.load_pack(text, okd))
             ref, kp = C.Plate(Ws), wald.plate(world)
+            if label.startswith("deep"):     # depth must matter at the prior judged, or a kernel that computes Q_1 passes
+                w_ = C.episode_world(Ws, ref.c + Counter(ref.shipped)); b_ = w_["prior"]
+                if all(S.REF.q(b_, w_, k, 2) == S.REF.q(b_, w_, k, 1) for k in w_["O"]): cases.append((label, C.deep_world(rng))); continue
             r = kp.run(D()); ref.c[r.record] += 1        # the plate's own record, beside the shipped ones
             b = kp.prior(); bref = ref.prior(); names = [c for c, _ in Ws["locals"] + Ws["globals"]]
             check(f"L6 {label}: prior() is a sealed belief - no public attribute, not a Display - that report renders",
