@@ -1,7 +1,8 @@
 """
 kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in wald-charter, never in the builder's repo.
 
-  python3 laws/kit.py --impl PATH_TO_src [--worlds 300] [--seed INT]      (seed defaults to $KIT_SEED, else 1)
+  python3 laws/kit.py --impl PATH_TO_src [--worlds 300] [--seed INT | --seed-file PATH]      (seed defaults to 1)
+  CI passes --seed-file; the file is read and deleted, and the seed spent, before the implementation is imported (kit v0.14).
 
 1. Kit integrity: the oracle passes every check and every poison is killed (the same test the page passed).
 2. The implementation, through its adapter `wald.kit_adapter.make_agent()` (see INTERFACE.md), must pass
@@ -19,11 +20,14 @@ kit.py - judges an IMPLEMENTATION against the signed page. Author-side: lives in
     surrogate, a Score of tens of thousands of digits, the corpus's mutations against the reference's verdicts); K8, K9 in
     kit_counts.py (an unnamed Global value, realisability as v0's loop, a prefix falsifier at an ending outcome, the plate at an
     ending outcome, the implementation's plate read back); L5 in kit_library.py (wald.digest, wald.score, wald.e7 in public).
+12. kit v0.14: the seed (kit_seed.py). Read from a file and deleted, never from the environment; every suite's seed derived
+    from it one way and the kit's Worlds drawn before the implementation is imported; the wire's server gets no kit environment.
 Exit code 0 = the implementation passes. Nothing else counts.
 """
 import argparse, importlib, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import spec_check as S
+import kit_seed
 
 class Impl:
     "Wraps the builder's agent; translates its WorldFalsified into the kit's."
@@ -69,9 +73,26 @@ def show(world):
     fr = lambda d: {str(k): (fr(v) if isinstance(v, dict) else str(v)) for k, v in d.items()}
     return fr({"prior": world["prior"], "T": world["T"], "O": {k: {"K": s["K"], "price": s["price"], "once": str(s["once"]), "ends": s["ends"]} for k, s in world["O"].items()}})
 
-def main():
+def prepare(argv=None):
+    """Everything the seed decides, decided before the implementation is in the process (kit v0.14): the file is read and
+    deleted, each suite gets its own seed by a one-way hash, the kit's Worlds are drawn, and the master seed does not
+    outlive this call. Returns (args, the suites' seeds, the Worlds)."""
     ap = argparse.ArgumentParser(); ap.add_argument("--impl", required=True); ap.add_argument("--worlds", type=int, default=300)
-    ap.add_argument("--seed", type=int, default=int(os.environ.get("KIT_SEED") or 1)); a = ap.parse_args()
+    g = ap.add_mutually_exclusive_group(); g.add_argument("--seed", type=int); g.add_argument("--seed-file")
+    a = ap.parse_args(argv)
+    if "KIT_SEED" in os.environ:
+        raise SystemExit("kit v0.14: KIT_SEED is in the environment of the process that would import the implementation; pass --seed-file")
+    seeds = kit_seed.suite_seeds(kit_seed.take(a.seed_file) if a.seed_file else (1 if a.seed is None else a.seed))
+    a.seed = a.seed_file = None
+    rng = random.Random(seeds.pop("kit")); worlds = [S.rand_world(rng) for _ in range(a.worlds)]
+    return a, seeds, worlds
+
+def load_agent(impl):
+    sys.path.insert(0, os.path.abspath(impl))
+    return Impl(importlib.import_module("wald.kit_adapter").make_agent())
+
+def main():
+    a, seeds, worlds = prepare()
     ok = True
     # 1. kit integrity (fixed public seed)
     rng = random.Random(20260920); ws = [S.rand_world(rng) for _ in range(60)]
@@ -83,9 +104,7 @@ def main():
     if all(S.same_acts(TieLast(), v, S.N) for v in ties): print("KIT BROKEN: the tie-breaking poison survives"); return 2
     print("kit integrity: oracle clean,", len(S.POISONS) + 1, "poisons killed")
     # 2. the implementation
-    sys.path.insert(0, os.path.abspath(a.impl))
-    agent = Impl(importlib.import_module("wald.kit_adapter").make_agent())
-    rng = random.Random(a.seed); worlds = [S.rand_world(rng) for _ in range(a.worlds)]
+    agent = load_agent(a.impl)
     worlds += [S.appendix(S.F(1, 2), True), S.appendix(S.F(1, 10), True), S.appendix(S.F(1, 10), False)]
     fails = {}
     for i, w in enumerate(worlds):
@@ -105,19 +124,19 @@ def main():
     import kit_structural
     if not kit_structural.main(a.impl): ok = False
     import kit_surface
-    if not kit_surface.main(a.impl, a.seed): ok = False
+    if not kit_surface.main(a.impl, seeds["surface"]): ok = False
     import kit_wordle
-    if not kit_wordle.main(a.impl, a.seed): ok = False
+    if not kit_wordle.main(a.impl, seeds["wordle"]): ok = False
     import kit_wordle_big
-    if not kit_wordle_big.main(a.impl, a.seed): ok = False
+    if not kit_wordle_big.main(a.impl, seeds["wordle_big"]): ok = False
     import kit_think
-    if not kit_think.main(a.impl, a.seed): ok = False
+    if not kit_think.main(a.impl, seeds["think"]): ok = False
     import kit_wordle_think
-    if not kit_wordle_think.main(a.impl, a.seed): ok = False
+    if not kit_wordle_think.main(a.impl, seeds["wordle_think"]): ok = False
     import kit_library
-    if not kit_library.main(a.impl, a.seed): ok = False
+    if not kit_library.main(a.impl, seeds["library"]): ok = False
     import kit_counts
-    if not kit_counts.main(a.impl, a.seed): ok = False
+    if not kit_counts.main(a.impl, seeds["counts"]): ok = False
     print("IMPLEMENTATION PASSES" if ok else "IMPLEMENTATION FAILS"); return 0 if ok else 1
 
 if __name__ == "__main__": sys.exit(main())

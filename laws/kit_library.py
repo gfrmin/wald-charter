@@ -56,6 +56,10 @@ def lock_tags(impl):
             if line.startswith("TAG="): tags["kit"] = line.strip().split("=", 1)[1]
     return tags
 
+def serve_env(impl):
+    "kit v0.14: tools/serve.py is the builder's code; it gets a PATH and the implementation, and nothing of the kit's environment."
+    return {"PATH": os.environ.get("PATH", ""), "PYTHONPATH": os.path.abspath(impl)}
+
 def main(impl, seed=1):
     results = []
     def check(tag, cond, note=""): results.append((tag, bool(cond), note))
@@ -97,8 +101,7 @@ def main(impl, seed=1):
     if not os.path.exists(serve):
         check("L4 tools/serve.py exists", False, "no tools/serve.py")
         return report(results)
-    env = dict(os.environ, PYTHONPATH=os.path.abspath(impl))
-    p = subprocess.Popen([sys.executable, serve], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=root)
+    p = subprocess.Popen([sys.executable, serve], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=serve_env(impl), cwd=root)
     def send(obj): p.stdin.write(json.dumps(obj) + "\n"); p.stdin.flush()
     def recv():
         line = p.stdout.readline()

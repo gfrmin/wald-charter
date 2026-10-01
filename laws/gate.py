@@ -20,6 +20,7 @@ CHECKS = [
     ("what the reference plate writes, the reference reads back", ["roundtrip_check.py"]),
     ("the kit's counts judge, stand-in", ["kit_counts.py", "--standin"]),
     ("the kit's surface judge, stand-in", ["kit_surface.py", "--standin"]),
+    ("the kit's seed: spent before the implementation is imported", ["kit_seed.py", "--standin"]),
 ]
 def main():
     t = time.time()
