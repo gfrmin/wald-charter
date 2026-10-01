@@ -1,0 +1,3 @@
+load 196s
+T=  300: prior  3.07s / scaled  1.00s (int bits 4944) | _play normalised  19.62s | _play integer   6.29s | acts equal True | final equal True | ops () ()
+T=  600: prior  4.74s / scaled  0.99s (int bits 9879) | _play normalised  55.10s | _play integer  14.56s | acts equal True | final equal True | ops () ()
