@@ -395,6 +395,62 @@ class Plate:
                 self.f = (tuple(draws), end, oa); return Result(acts, "WORLD_FALSIFIED", self.f)
         r = (tuple(draws), end, oa); self.c[r] += 1
         return Result(acts, "TERMINAL" if end in W["T"] else "ENDED", r)
+    def prior(self):
+        "kit v0.14: the belief the next episode starts from, P(Global | Counts) x P(local | Global) (section 4); none once falsified"
+        if self.f is not None: raise refused("FALSIFIED", "C2.J26")
+        return episode_world(self.W, self.c + Counter(self.shipped))["prior"]
+    def values(self):
+        "kit v0.14: the decision quantities at that belief, as `render_values` writes them"
+        if self.f is not None: raise refused("FALSIFIED", "C2.J26")
+        return render_values(values(episode_world(self.W, self.c + Counter(self.shipped))))
+
+# ---------------------------------------------------------------- what a host may ask of a plate (kit v0.14, gfrmin/wald#14)
+def components(W):
+    "every component of the space by name: name -> (part, index, values), part 0 the locals and 1 the Globals"
+    return {c: (part, i, vs) for part, dims in enumerate((W["locals"], W["globals"])) for i, (c, vs) in enumerate(dims)}
+
+def marginal(W, b, over):
+    """b's marginal on the components `over` names, in that order: {values: mass}, only values of positive mass, in the
+    order of the product of those components' declared values. `over` is a non-empty list of distinct component names
+    of W; anything else is UNKNOWN_NAME. Over the Globals, the marginal of a plate's prior is P(Global | Counts)."""
+    comps = components(W)
+    if not over or len(set(over)) != len(over) or not set(over) <= set(comps):
+        raise refused("UNKNOWN_NAME", "kit v0.14: over names distinct components of the space")
+    m = {}
+    for s, p in b.items():
+        lg = unkey(s); key = tuple(lg[comps[c][0]][comps[c][1]] for c in over)
+        m[key] = m.get(key, F(0)) + p
+    return {k: m[k] for k in itertools.product(*[comps[c][2] for c in over]) if m.get(k, F(0)) > 0}
+
+def q(x):
+    "a rational as a pack writes a cell, in decimal digits however many (surface_check.q, imported late: it imports this module)"
+    import surface_check
+    return surface_check.q(F(x))
+
+def name_text(x):
+    "a name, or a list of names, as compact JSON with V2.13's escapes: any character a name holds is written unambiguously"
+    return json.dumps(x, separators=(",", ":"), ensure_ascii=True)
+
+def render_marginal(m):
+    "one line per value: its names as a JSON array, a space, its mass as a pack writes a cell"
+    return "\n".join(name_text(list(k)) + " " + q(p) for k, p in m.items())
+
+def values(w):
+    """CHARTER v0 section 2's decision quantities at an episode World's prior, with the full menu and n = min(d, N), the
+    floor's depth at an episode's first step (E3): n; V_0; E_b[u(., t)] for each terminal act in declared order; Q_n(b,M,k)
+    for each observational act in declared order (none when n = 0); V_n and decide_n, the first entry attaining it (J3)."""
+    b, n = w["prior"], min(w["d"], w["N"])
+    T = [(t, REF.expect(b, u)) for t, u in w["T"].items()]
+    O = [(k, REF.q(b, w, k, n)) for k in REF.menu(w, frozenset())] if n > 0 else []
+    vn, act = REF.solve(b, w, n)
+    return n, max(v for _, v in T), T, O, vn, act
+
+def render_values(vals):
+    """the lines, in order: `n <n>`; `V_0 <V_0>`; `T <name> <E_b[u]>` for each terminal act; `O <name> <Q_n> <Q_n - V_0>`
+    for each observational act; `V_n <V_n> <decide_n>`. Names as `name_text` writes them, rationals as a pack writes a cell."""
+    n, v0, T, O, vn, act = vals
+    return "\n".join([f"n {n}", f"V_0 {q(v0)}"] + [f"T {name_text(t)} {q(v)}" for t, v in T]
+                     + [f"O {name_text(k)} {q(v)} {q(v - v0)}" for k, v in O] + [f"V_n {q(vn)} {name_text(act)}"])
 
 # ---------------------------------------------------------------- Part 2: checks (True = holds)
 def FRESH(impl, W, recs, rng):
@@ -596,6 +652,11 @@ def frozen():
     assert sum(p for s, p in b.items() if s.startswith("a1")) == F(39, 50) and REF.solve(b, w2, 0) == (F(17, 50), "say a1")
     assert post_global(W, Counter([rec("a1", "a1"), rec("a1", "a2")])) == {good: F(3, 11), poor: F(8, 11)}
     L.append("  A  one graded episode: reliability (3/5, 2/5); next P(a1|report) 39/50, value 17/50; order-free (3/11, 8/11)")
+    # kit v0.14: CHARTER v0's appendix as Plate.values() writes it
+    wa = dict(__import__("spec_check").appendix(F(1, 2), True), N=1, d=1)
+    assert render_values(values(wa)) == 'n 1\nV_0 -8/5\nT "treat" -8/5\nT "leave" -2\nO "test" -51/50 29/50\nV_n -51/50 "test"'
+    assert render_marginal(marginal(W, episode_world(W, Counter([rec("a1", "a1")]))["prior"], ["rel"])) == '["9/10"] 3/5\n["3/5"] 2/5'
+    L.append("  v  CHARTER v0's appendix as values: V_0 -8/5, Q_1(test) -51/50 (29/50 over V_0), decide_1 test; A's Global marginal (3/5, 2/5)")
     # S15 on the same World without a verdict: reports alone are uninformative about a symmetric reliability
     Ap = reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2), verdict=False); refuse(Ap)
     assert learns_nothing(Ap) and len(unwashable(Ap)) == 1

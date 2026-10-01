@@ -14,6 +14,10 @@ L5  kit v0.13 (brief 009): a host shipping Counts needs no kit. `wald.digest(cou
     `wald.score(world, counts, falsifiers)` is V2.8's Score written as a pack writes it, "p/q", however many digits;
     `wald.e7(world, counts)` is E7's lines as a Display. A pack written from these alone - the refit of attack session 5,
     and appendix A shipping 300 records, whose Score has tens of thousands of digits - loads and declares.
+L6  kit v0.14 (gfrmin/wald#14): what a host may ask of a plate without playing an episode. `Plate.prior()` is the sealed
+    belief its next episode starts from; `report(belief, world, over=[...])` its marginal on the named components;
+    `Plate.values()` V_0, E[u] per terminal, Q_n and Q_n - V_0 per act, V_n and decide_n, as a Display; and every verb
+    refuses by raising.
 Every rational on the wire is a string "p/q"; every message one JSON object per line.
 """
 import argparse, importlib, json, os, subprocess, sys
@@ -96,6 +100,8 @@ def main(impl, seed=1):
     # L5: a host shipping Counts needs no kit (kit v0.13)
     if not lack: _l5(wald, check)
     else: check("L5 a host shipping Counts needs no kit", False, "wald.digest, wald.score and wald.e7 are not all functions")
+    # L6: what a host may ask of a plate (kit v0.14)
+    _l6(wald, check, seed)
     # L4: the wire
     root = os.path.dirname(os.path.abspath(impl)); serve = os.path.join(root, "tools", "serve.py")
     if not os.path.exists(serve):
@@ -185,6 +191,100 @@ def _l5(wald, check):
               inert and all(R.q(v) in text_ for v in lines.values()), f"inert {inert}; {text_[:120]!r}")
     except Exception as e:
         check("L5 a host shipping Counts needs no kit", False, f"{type(e).__name__}: {str(e)[:200]}")
+
+def drawn(wald, W, rng):
+    """a wald.Door that draws a state from W's prior, then every report from that state's kernel rows, the After-act's
+    included: whatever it reports, the World gave positive mass, so no plate it plays is falsified"""
+    sts = [(l, g) for g, pg in W["prior_global"].items() for l, pl in W["prior_local"][g].items() if pg * pl > 0]
+    def pick(row):
+        os_ = [o for o, p in row.items() if p > 0]; return rng.choices(os_, [row[o] for o in os_])[0]
+    class D(wald.Door):
+        def __init__(self):
+            self.st = rng.choices(sts, [W["prior_global"][g] * W["prior_local"][g][l] for l, g in sts])[0]; self.end = None
+        def outcome(self, act):
+            if W.get("after") and act == W["after"].get("name", "after"): return pick(W["after"]["K"][self.end][self.st])
+            o = pick(W["O"][act]["K"][self.st])
+            if o in W["O"][act].get("ends", ()): self.end = f"end:{act}={o}"
+            return o
+        def fire(self, act): self.end = act
+    return D
+
+def _l6(wald, check, seed):
+    """kit v0.14 (gfrmin/wald#14): what a host may ask of a plate without playing an episode - the belief its next episode
+    starts from, sealed; any marginal of a belief as a Display; the decision quantities there as a Display - and that
+    every verb refuses by raising"""
+    import counts_check as C, random
+    from collections import Counter
+    okd = os.path.join(HERE, "packs", "ok"); rng = random.Random(seed)
+    def inert(d):
+        if not isinstance(d, wald.Display): return False
+        try: d == d
+        except TypeError: return True
+        return False
+    def refusal(f):
+        try: f()
+        except wald.refusals.Refused as e: return e.name
+        except Exception as e: return type(e).__name__
+        return "returned"
+    try:
+        w = S.appendix(F(1, 2), True); w["N"], w["d"] = 1, 1
+        p = wald.plate(wald.declare(wald.from_json(json.dumps(wire_spec(w))))); v = p.values()
+        check("L6 CHARTER v0's appendix on a plate: values() is a Display reading V_0 -8/5, Q_1(test) -51/50, Q_1 - V_0 29/50, decide_1 test",
+              inert(v) and str(v) == C.render_values(C.values(w)), f"got {str(v)[:200]!r}")
+        bad = wire_spec(M.vector_A()); bad["T"] = {}
+        check("L6 declare raises Refused, as load_pack does: one convention (EMPTY_T)", refusal(lambda: wald.declare(wald.from_json(json.dumps(bad)))) == "EMPTY_T", "")
+        poison = os.path.join(HERE, "packs", "poison", "08_unread_parameter.py")
+        if os.path.exists(poison):
+            check("L6 load_pack raises Refused (UNREAD_PARAMETER)", refusal(lambda: wald.load_pack(open(poison, encoding="utf-8", newline="").read(), okd)) == "UNREAD_PARAMETER", "")
+    except Exception as e:
+        check("L6 the appendix's values on a plate", False, f"{type(e).__name__}: {str(e)[:200]}")
+    cases = [("router", C.router_world(True)), ("reliability", C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)))]
+    cases += [(f"random {i}", C.rand_world(rng)) for i in range(4)]
+    for label, W0 in cases:
+        try:
+            bare = R.to_pack_v02(W0); W = R.check(bare, {}, okd); D = drawn(wald, W, rng)
+            ref = C.Plate(W)
+            for _ in range(rng.randint(3, 12)): ref.run(D())
+            recs = ref.counts()
+            text = shipped_text(bare, recs, [], C.counts_sha(recs), C.q(C.loo_score(W, recs)))
+            Ws = R.check(text, {}, okd); world = wald.declare(wald.load_pack(text, okd))
+            ref, kp = C.Plate(Ws), wald.plate(world)
+            r = kp.run(D()); ref.c[r.record] += 1        # the plate's own record, beside the shipped ones
+            b = kp.prior(); bref = ref.prior(); names = [c for c, _ in Ws["locals"] + Ws["globals"]]
+            check(f"L6 {label}: prior() is a sealed belief - no public attribute, not a Display - that report renders",
+                  not [a for a in dir(b) if not a.startswith("_")] and not isinstance(b, wald.Display) and inert(wald.report(b, world)), f"{type(b).__name__}")
+            G = [c for c, _ in Ws["globals"]]
+            if G:
+                d = wald.report(b, world, over=G)
+                check(f"L6 {label}: report(prior, over=Globals) is P(Global | Counts), the shipped and the plate's own",
+                      inert(d) and str(d) == C.render_marginal(C.marginal(Ws, bref, G)), f"got {str(d)[:160]!r}")
+            for over in [[c] for c in names] + [names[::-1]]:
+                d = wald.report(b, world, over=over)
+                check(f"L6 {label}: report(prior, over={over}) is that marginal, values in the order over names them",
+                      inert(d) and str(d) == C.render_marginal(C.marginal(Ws, bref, over)), f"got {str(d)[:160]!r}")
+            check(f"L6 {label}: report over a name that is no component, or one twice, is refused UNKNOWN_NAME",
+                  refusal(lambda: wald.report(b, world, over=["no such component"])) == "UNKNOWN_NAME" == refusal(lambda: wald.report(b, world, over=names[:1] * 2)), "")
+            v = kp.values()
+            check(f"L6 {label}: values() is a Display of n, V_0, E[u] per terminal, Q_n and Q_n - V_0 per act, V_n and decide_n",
+                  inert(v) and str(v) == ref.values(), f"got {str(v)[:200]!r}\nwant {ref.values()[:200]!r}")
+        except Exception as e:
+            check(f"L6 {label}: a plate's prior, marginals and values", False, f"{type(e).__name__}: {str(e)[:200]}")
+    try:
+        W = R.check(R.to_pack_v02(C.reliability_world([F(1)], [F(1)], F(-2))), {}, okd); world = wald.declare(wald.load_pack(R.to_pack_v02(C.reliability_world([F(1)], [F(1)], F(-2))), okd))
+        kp = wald.plate(world)
+        class Liar(wald.Door):
+            def __init__(self): self.said = None
+            def outcome(self, act):
+                if act == "ask": self.said = "a1"; return "a1"
+                return "a2" if self.said == "a1" else "a1"
+            def fire(self, act): pass
+        r = kp.run(Liar())
+        if str(r.status).endswith("WORLD_FALSIFIED"):
+            check("L6 a falsified plate has no next prior and no values: prior() and values() raise WorldFalsified, as run does",
+                  refusal(kp.prior) == refusal(kp.values) == "WorldFalsified", f"{refusal(kp.prior)}, {refusal(kp.values)}")
+        else: check("L6 the falsifying vector falsifies", False, f"status {r.status}, acts {r.acts}")
+    except Exception as e:
+        check("L6 a falsified plate", False, f"{type(e).__name__}: {str(e)[:200]}")
 
 def report(results):
     for tag, good, note in results:
