@@ -19,6 +19,8 @@ All numbers are `fractions.Fraction`. States, acts and outcomes are hashable val
 
 The kit never reads the implementation's source. It checks C1–C11, S5 and E2 of the signed page on worlds drawn from a seed kept in CI, on forced-tie variants of them (J3), and on the appendix vector.
 
+The seed is drawn before the implementation is imported (kit v0.14, `kit_seed.py`). CI hands it to the kit as a file, which the kit reads and deletes; every suite's seed is derived from it one way, and the kit's worlds are drawn, before the first import of `wald`. No process that runs implementation code, the wire's `tools/serve.py` included, has the seed in its environment: the kit refuses to run if `KIT_SEED` is set, and the server is given `PATH` and `PYTHONPATH` only.
+
 ## The structural surface (kit v0.1)
 
 `kit_structural.py` judges the real API below. Names and signatures are fixed here; everything else is the builder's.
