@@ -92,7 +92,7 @@ Kit v0.13 and brief 009, this list's first two items on 2026-09-25, are done (§
    - **acts with a precondition** (queued for CHARTER v0.3 in `ERRATA.md`, with the arena's table as its §0): the arena's "blind switch", where submitting the second opinion's answer can fire without consulting it and the World undercharges — 96 of 150 dry-run questions, about 0.64 a question at c = 1;
    - **cheaper Global grids**: a plate's cost grows as the product of every Global's grid. The Counts' side of this is answered (§5, 2026-10-01): not a sufficient-form question and not a page question, but brief 011's.
    - **a kernel as a likelihood** (stage 2, beside generated hypotheses): K given only at the outcome observed, and Ω generated per row. hkaddresses is the consumer that needs it (§5); the measurement is that wald can be its act's runtime and not its posterior's.
-7. **Q6 and Q9's second half** (§5), into `INTERFACE.md` at the next kit bump, with a poison each.
+7. **Q6 and Q9's second half**, closed in kit v0.14 (INTERFACE's last section): the builder's readings, which the kernel already follows. L4 and L6 judge them, and a poison of each fails.
 8. Findings on signed pages go to `ERRATA.md`; a finding from any source first asks which gate check should have found it.
 
 ## 7. What was learned the hard way

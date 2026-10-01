@@ -130,6 +130,13 @@ def main(impl, seed=1):
         check("L4 the wire's result carries thought, steps, operations and the belief as a Display string", res.get("thought") == "1/5" and res.get("steps", {}).get("think") == 1 and isinstance(res.get("operations"), list) and isinstance(res.get("final"), str), f"got {str(res)[:200]}")
         bad = wire_spec(M.variants(M.vector_A(), fraction=F(3, 2))); send({"op": "declare", "spec": bad}); e = recv()
         check("L4 a refused spec comes back by name", e.get("refused") == "FRACTION", f"got {e}")
+        # Q6 (brief 006), pinned at kit v0.14: a decimal where a rational is meant is FLOAT; everything else the wire
+        # can get wrong is WIRE, the wire's refusal in general - an unknown key refused, never ignored
+        for fault, want, mutate in _wire_faults():
+            send({"op": "declare", "spec": mutate(wire_spec(M.vector_A()))}); e = recv()
+            check(f"L4 a wire spec with {fault} is refused {want} (Q6)", e.get("refused") == want, f"got {e}")
+        p.stdin.write("{not json\n"); p.stdin.flush(); e = recv()
+        check("L4 a line that is not JSON is refused WIRE, not a crash (Q6)", e.get("refused") == "WIRE" and p.poll() is None, f"got {e}")
         send({"op": "nonsense"}); u = recv()
         check("L4 an unknown op is refused, not a crash", "refused" in u and p.poll() is None, f"got {u}")
         send({"op": "bye"})
@@ -192,6 +199,19 @@ def _l5(wald, check):
     except Exception as e:
         check("L5 a host shipping Counts needs no kit", False, f"{type(e).__name__}: {str(e)[:200]}")
 
+def _wire_faults():
+    "Q6's reading, kit v0.14: (the fault, its name, a change to a wire spec)"
+    def at(f):
+        def g(s): s = json.loads(json.dumps(s)); f(s); return s
+        return g
+    first = lambda s: next(iter(s["prior"]))
+    return [("a JSON float for a rational", "FLOAT", at(lambda s: s["prior"].__setitem__(first(s), 0.2))),
+            ("a decimal string for a rational", "FLOAT", at(lambda s: s["prior"].__setitem__(first(s), "0.2"))),
+            ("an exponent string for a rational", "FLOAT", at(lambda s: s["prior"].__setitem__(first(s), "1e-3"))),
+            ("an unknown key (dplsu)", "WIRE", at(lambda s: s.__setitem__("dplsu", 2))),
+            ("a count written as a string", "WIRE", at(lambda s: s.__setitem__("N", "2"))),
+            ("a missing key (T)", "WIRE", at(lambda s: s.pop("T")))]
+
 def drawn(wald, W, rng):
     """a wald.Door that draws a state from W's prior, then every report from that state's kernel rows, the After-act's
     included: whatever it reports, the World gave positive mass, so no plate it plays is falsified"""
@@ -238,6 +258,23 @@ def _l6(wald, check, seed):
             check("L6 load_pack raises Refused (UNREAD_PARAMETER)", refusal(lambda: wald.load_pack(open(poison, encoding="utf-8", newline="").read(), okd)) == "UNREAD_PARAMETER", "")
     except Exception as e:
         check("L6 the appendix's values on a plate", False, f"{type(e).__name__}: {str(e)[:200]}")
+    # Q6 in process: from_json refuses as the wire does
+    for fault, want, mutate in _wire_faults():
+        check(f"L6 from_json of a spec with {fault} raises Refused {want} (Q6)", refusal(lambda: wald.declare(wald.from_json(json.dumps(mutate(wire_spec(M.vector_A())))))) == want, "")
+    check("L6 from_json of text that is not JSON, or not an object, raises Refused WIRE (Q6)",
+          refusal(lambda: wald.from_json("{not json")) == "WIRE" == refusal(lambda: wald.from_json("[1, 2]")), "")
+    # Q9's second half (brief 007), pinned at kit v0.14: falsifier() is this plate's own falsifying record; the ones its
+    # declaration shipped are the declaration's, in the evidence of every prior, and are not returned
+    try:
+        text = open(os.path.join(okd, "refit_scored_falsifier.py"), encoding="utf-8", newline="").read()
+        Wf = R.check(text, {}, okd); kp = wald.plate(wald.declare(wald.load_pack(text, okd)))
+        bref = C.Plate(Wf).prior(); names = [c for c, _ in Wf["globals"]]
+        check("L6 a plate shipped a falsifying record: falsifier() is None until the plate itself is falsified (Q9)",
+              Wf.get("falsifiers") and kp.falsifier() is None, f"got {kp.falsifier()!r}")
+        check("L6 ... and its prior conditions on the shipped falsifying record (J26)",
+              str(wald.report(kp.prior(), wald.declare(wald.load_pack(text, okd)), over=names)) == C.render_marginal(C.marginal(Wf, bref, names)), "")
+    except Exception as e:
+        check("L6 a plate shipped a falsifying record (Q9)", False, f"{type(e).__name__}: {str(e)[:200]}")
     cases = [("router", C.router_world(True)), ("reliability", C.reliability_world([F(9, 10), F(3, 5)], [F(1, 2), F(1, 2)], F(-2)))]
     cases += [(f"random {i}", C.rand_world(rng)) for i in range(4)]
     for label, W0 in cases:
