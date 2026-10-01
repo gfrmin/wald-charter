@@ -77,6 +77,17 @@ Adopted on 2026-09-24, after two v0.2 pages took fifteen and eight drafts. Most 
   5. **Its M2 plans a tempered update.** `spec_check.py`'s `DoubleCount` is the power posterior at η = 2, and a fractional η gives irrational masses, so in exact rationals it is unsayable rather than refused. (`Dampen`, "likelihood mixed with a constant", is a different error.)
 - **The act layer could be its runtime now; measured 2026-09-30** (`measurements/2026-09-30-act-runtime/`, against hkaddresses `1db1bc8` with a dirty tree, wald `v0.2.1`, on steel, medians). On the oracle test's own draws, 2 to 8 states, `wald.declare` plus `wald.run` takes 0.05–0.38 ms against `decide`'s 0.04–0.22 ms: **about twice `decide`, 2,600 to 21,000 rows a second.** The toy worlds stop at 8 states; on synthetic Worlds of the same shape (a terminal per tree node, two questions) wald alone does 765 rows/s at 16 states, 226 at 32, 57 at 64, 13.5 at 128, 1.2 at 400 — the cost grows as states × terminals. The board runs 31–1,371 rows/s end to end. So on a posterior collapsed to a few value groups wald is fast enough to be the act's runtime, and on the uncollapsed 400 candidates it is not. Caveats: toy worlds, not the gazetteer; bits are a double's log₂ read as a `Fraction`. Whether to use it so is hkaddresses' owner's ruling.
 
+## Measurements from the Renavon World (2026-10-01)
+
+The Renavon World (`gfrmin/renavon-monorepo`, `world/`, on wald `v0.2.1`, on steel) is a host that keeps or folds four product families each month. It has 81 Global values (four rungs), 20,736 states and four windows. Four of its measurements bear on the law:
+
+- **The After-act as a table.** V2.5's table is 16 ends × 20,736 states = 331,776 cells, or 21,787,173 bytes. It was dropped under appendix F: the rungs learn from `this_month` alone. Pack: turn one's World (`world/turn-one`, e4903fb4; its `QUESTIONS.md`, "kernel as a function").
+- **A fourth rung, refused.** The `sure` rung (99/100) gives 256 Global values, 65,536 states and a pack of 3,201,790 bytes, and `declare` did not finish in 60 s. E7's racing line stands at 1/10 (racing paid in every month on sale; the top rung is 9/10). Pack: turn one's ruling-B probe (`world/turn-one`, c176d86c).
+- **S15's disclosure, not computed.** It did not finish in 1,200 s at six acts, which is 720 orderings. The World's unwashable prior is therefore unknown. Pack: turn two's two-pursue World (`world/turn-two`, e2eed4f0, `packs/renavon.py`, 964,074 bytes).
+- **The owner's full World.** 4,096 Global values and 24.9 M states (24,883,200), out of reach of enumeration. For scale, `declare` takes 168–222 s at this World's 20,736 states, and the first decision about 12 s. Pack: the r2 brief's full World, counted by `world/size.py` (d1a6b117) and never declared.
+
+The acts that pay (turn two's credited column) are acts with effects, which v0 §0 excludes; a declared transition that may read the act, with drift as the act-free case, is the amendment both measurements ask for.
+
 ## 6. Next steps, in order
 
 Kit v0.13 and brief 009, this list's first two items on 2026-09-25, are done (§5). So are the audit at hkaddresses' M1, which its own agent wrote, and mypy in the gate.
