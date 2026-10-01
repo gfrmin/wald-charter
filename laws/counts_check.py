@@ -633,6 +633,17 @@ def rand_world(rng):
     return {"locals": L, "globals": G, "prior_global": pg, "prior_local": pl, "T": T, "O": O, "after": after,
             "N": len(O), "d": 1}
 
+def deep_world(rng):
+    """kit v0.14: rand_world at depth 2 over a horizon of 3, its first act with an ending outcome (utility read from the
+    local alone, S11) and its second act not `once`, so Q_n is judged past n = 1 and at an ending outcome (PR #2's review)"""
+    W = rand_world(rng)
+    while len(W["O"]) < 2: W = rand_world(rng)
+    ls, gs = vals(W["locals"]), vals(W["globals"]); ul = {l: F(rng.randint(-3, 3)) for l in ls}
+    W["O"]["k0"]["ends"] = {"q"}; W["O"]["k0"]["u_end"] = {"q": {(l, g): ul[l] for g in gs for l in ls}}
+    W["O"]["k1"]["once"] = False; W["N"], W["d"] = 3, 2
+    W["after"]["K"]["end:k0=q"] = {(l, g): {"r": F(1, 2), "s": F(1, 2)} for g in gs for l in ls}
+    return W
+
 def rand_records(W, rng, n):
     out = []
     for _ in range(n):
